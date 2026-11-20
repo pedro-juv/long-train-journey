@@ -77,8 +77,15 @@ func _run() -> void:
 	var audio := _main.get_node("AudioDirector")
 	_check(view._theme_id == "primavera", "cenário no tema da Primavera (%s)" % view._theme_id)
 	_check(audio.current_music_theme() == "primavera", "música na variação da Primavera (%s)" % audio.current_music_theme())
+	_check(g.state.train.state == TrainMovement.State.AT_STATION and g.state.station_stop_left > 0.0, "ao abrir, o trem está parado na plataforma da Primavera")
+	_check(hud.get_node("%StateLabel").visible and hud.get_node("%StateLabel").text.contains("Parado em Primavera"), "estado mostra a parada na estação")
+	g.set_stop_at_stations(false)
+	_check(not hud._stop_button.button_pressed and hud._stop_button.text.contains("não"), "botão Parar nas estações desliga")
+	g.state.station_stop_left = 0.0
 	g.state.train.distance_m = g.state.route.target_distance(2) - 1.0
+	g.state.train.current_speed = g.state.cruise_speed()
 	await get_tree().create_timer(0.3).timeout
+	_check(g.state.train.state != TrainMovement.State.AT_STATION, "com o botão desligado o trem passa direto pelo Verão")
 	_check(view._theme_id == "verao" and view._prev_theme_id == "primavera" and view._blend < 1.0, "chegar ao Verão inicia a transição de tema")
 	_check(audio.current_music_theme() == "verao", "música troca para a variação do Verão")
 	hud.get_node("%OfflineOk").pressed.emit()
@@ -106,13 +113,16 @@ func _run() -> void:
 	_check(is_equal_approx(g.state.total_production(), prod_before * 1.5), "produção total +50%")
 	_check(not hud._upgrade_buttons.has("station_0"), "loja reconstruída sem a melhoria comprada")
 	var clicks_before := g.state.stock.amount
+	var expected_click := (1.0 + g.state.total_production() * 0.02) * 2.0
+	var stoke_before := g.state.stoke
 	hud.get_node("%ClickButton").pressed.emit()
-	_check(is_equal_approx(g.state.stock.amount - clicks_before, 2.0), "clique vale 2 com a 1ª melhoria")
+	_check(absf(g.state.stock.amount - clicks_before - expected_click) < 0.01 * expected_click + 1.0, "clique = (1 + 2% da produção) x2 com a 1ª melhoria (%.1f)" % expected_click)
+	_check(g.state.stoke > stoke_before, "clique atiça a caldeira")
 
 	print("Save")
 	g.save_now()
 	var saved: Dictionary = SaveManager.load_game()
-	_check(int(saved.get("save_version", 0)) == 4 and saved.has("saved_at") and saved.has("components"), "save v4 com horário e componentes")
+	_check(int(saved.get("save_version", 0)) == 5 and saved.has("saved_at") and saved.has("components") and saved.has("stop_at_stations"), "save v5 com horário, componentes e preferência de parada")
 	_check(int(saved["producers"]["carvoaria"]) == 4, "save guarda os níveis")
 
 	print("Aba Trem")
@@ -132,12 +142,18 @@ func _run() -> void:
 	_check(is_equal_approx(g.state.component("rodas").integrity, 1.0), "botão Reparar leva a 100%")
 	crow["rodas"]["reinforce"].pressed.emit()
 	_check(g.state.component("rodas").level == 1, "botão Reforçar sobe o nível")
+	g.state.station_stop_left = 0.0
+	g.state.train.current_speed = g.state.cruise_speed()
 	g.state.component("pistoes").integrity = 0.000001
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().create_timer(0.15).timeout
-	_check(g.state.maintenance.is_stopped(), "peça a 0%: trem em manutenção")
-	_check(hud.get_node("%StateLabel").text.contains("EM MANUTENÇÃO (Pistões)"), "estado mostra a manutenção (%s)" % hud.get_node("%StateLabel").text)
+	_check(g.state.maintenance.is_stopped(), "peça a 0%: trem vai parar para manutenção")
+	_check(g.state.train.state == TrainMovement.State.BRAKING and g.state.train.current_speed > 0.0, "freia aos poucos em vez de parar na hora")
+	_check(hud.get_node("%StateLabel").text.contains("Pistões"), "estado mostra a falha (%s)" % hud.get_node("%StateLabel").text)
+	await get_tree().create_timer(3.5).timeout
+	_check(g.state.train.state == TrainMovement.State.MAINTENANCE, "depois de frear, para em manutenção")
+	_check(hud.get_node("%StateLabel").text.contains("Em manutenção (Pistões)"), "estado mostra a manutenção (%s)" % hud.get_node("%StateLabel").text)
 	_check(hud.get_node("%MaintenanceBar").visible, "barra de manutenção visível")
 	hud.get_node("%ProductionTab").pressed.emit()
 	_check(hud._producer_rows.size() == 3, "volta para a aba Produção")

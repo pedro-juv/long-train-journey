@@ -6,12 +6,11 @@ extends RefCounted
 ## jogo quanto nos testes automatizados. Não emite sinais: devolve o que
 ## aconteceu e o GameController repassa para a interface pelo EventBus.
 
-const SAVE_VERSION := 4
+const SAVE_VERSION := 5
 
 var config  # o Balance (ou um objeto com os mesmos campos)
 
 var stock: CoalStock
-var tank: FuelTank
 var producers: Array[CoalProducer] = []
 var upgrades: Upgrades
 var train: TrainMovement
@@ -22,19 +21,28 @@ var maintenance: Maintenance
 var global_multiplier: float = 1.0
 var click_multiplier: float = 1.0
 
+## Pressão da caldeira atiçada pelos cliques (0 a 1): dá velocidade extra.
+var stoke: float = 0.0
+## Preferência do jogador: parar na plataforma de cada estação (com cutscene).
+var stop_at_stations: bool = true
+## Segundos que faltam parado na estação atual (0 = não está parado).
+var station_stop_left: float = 0.0
+
 var _producer_by_id: Dictionary = {}
 
 
 func _init(p_config) -> void:
 	config = p_config
 	stock = CoalStock.new(config.initial_stock)
-	tank = FuelTank.new(config.tank_capacity, config.tank_capacity)  # começa cheio
 	for data in config.producers:
 		var p := CoalProducer.new(data, config.producer_cost_growth, config.milestone_levels, config.milestone_multiplier)
 		producers.append(p)
 		_producer_by_id[p.id] = p
 	upgrades = Upgrades.new(config.upgrades)
-	train = TrainMovement.new(config.train_base_speed, config.train_speed_factor, config.train_speed_exponent, config.coal_per_meter)
+	train = TrainMovement.new(config.train_base_speed, config.train_speed_factor, config.train_speed_exponent)
+	train.accel_seconds = config.train_accel_seconds
+	train.brake_seconds = config.train_brake_seconds
+	train.station_brake_seconds = config.train_station_brake_seconds
 	route = StationTracker.new(config.stations)
 	maintenance = Maintenance.new(config.components, config.reinforce_life_multiplier, config.reinforce_cost_growth,
 		config.maintenance_seconds, config.repair_seconds_of_production, config.auto_repair_threshold)
@@ -63,8 +71,26 @@ func producer_production(id: String) -> float:
 	return producer(id).output_per_second() * global_multiplier
 
 
+## Carvão por clique: parte fixa + fração da produção, vezes as pás.
 func click_value() -> float:
-	return config.coal_per_click * click_multiplier
+	return (config.coal_per_click + total_production() * config.click_production_fraction) * click_multiplier
+
+
+## Velocidade extra da caldeira atiçada (0.24 = +24%).
+func stoke_bonus() -> float:
+	return stoke * config.stoke_max_speed_bonus
+
+
+## Velocidade de cruzeiro agora (produção, reforços e caldeira).
+func cruise_speed() -> float:
+	return train.speed_for_production(total_production()) * (1.0 + stoke_bonus())
+
+
+## O trem vai parar na PRÓXIMA estação? A primeira sempre (apresentação).
+func will_stop_at_next_station() -> bool:
+	if route.is_complete():
+		return false
+	return stop_at_stations or route.reached_count == 0
 
 
 func is_producer_unlocked(id: String) -> bool:
@@ -154,6 +180,7 @@ func can_buy_auto(id: String) -> bool:
 
 func click() -> void:
 	stock.add(click_value())
+	stoke = minf(1.0, stoke + config.stoke_per_click)
 
 
 func buy_producer(id: String) -> bool:
@@ -219,56 +246,84 @@ func buy_auto_maintenance(id: String) -> bool:
 
 ## Avança `delta` segundos. Retorna:
 ## { "state_changed": bool, "stations": [índices], "failed": [ids],
-##   "auto": [ids], "maintenance_done": bool }
+##   "auto": [ids], "maintenance_done": bool, "station_stop": bool, "departed": bool }
 func tick(delta: float) -> Dictionary:
 	var production := total_production()
-	stock.add(production * delta)  # a produção continua mesmo em manutenção
-	tank.add(stock.take_up_to(tank.free_space()))  # abastecimento automático
+	stock.add(production * delta)  # a produção continua mesmo parado
+	stoke *= exp(-delta / config.stoke_decay_seconds)
 	var result := {"state_changed": false, "stations": [] as Array[int], "failed": [] as Array[String],
-		"auto": [] as Array[String], "maintenance_done": false}
+		"auto": [] as Array[String], "maintenance_done": false, "station_stop": false, "departed": false}
+	var previous_state := train.state
+	var cruise := cruise_speed()
 
-	if maintenance.is_stopped():
-		result["state_changed"] = train.hold_for_maintenance(production)
-		result["maintenance_done"] = maintenance.tick_stop(delta)
+	# Parado na plataforma.
+	if station_stop_left > 0.0:
+		train.hold(TrainMovement.State.AT_STATION, cruise)
+		station_stop_left -= delta
+		if station_stop_left <= 0.0:
+			station_stop_left = 0.0
+			train.state = TrainMovement.State.ACCELERATING
+			result["departed"] = true
+		result["state_changed"] = train.state != previous_state
 		return result
 
-	var before := train.distance_m
-	result["state_changed"] = train.tick(delta, tank, production)
-	var meters := train.distance_m - before
+	# Peça quebrada: freia; o conserto só conta com o trem parado.
+	var failing := maintenance.is_stopped()
+	if failing and train.is_stopped():
+		train.hold(TrainMovement.State.MAINTENANCE, cruise)
+		result["maintenance_done"] = maintenance.tick_stop(delta)
+		if result["maintenance_done"]:
+			train.state = TrainMovement.State.ACCELERATING
+		result["state_changed"] = train.state != previous_state
+		return result
+
+	var stop_at := INF
+	if will_stop_at_next_station():
+		stop_at = route.target_distance(route.reached_count)
+	var meters := train.tick(delta, cruise, failing, stop_at)
 	var moving_seconds := delta if meters > 0.0 else 0.0
 	var wear := maintenance.wear(meters, moving_seconds, route, stock, production)
 	result["failed"] = wear["failed"]
 	result["auto"] = wear["auto"]
-	if maintenance.is_stopped():
-		result["state_changed"] = train.hold_for_maintenance(production) or result["state_changed"]
+	if maintenance.is_stopped() and not failing:
+		train.state = TrainMovement.State.BRAKING  # começou a frear agora
 	result["stations"] = route.update(train.distance_m)
+	if not result["stations"].is_empty() and is_finite(stop_at) and train.distance_m >= stop_at:
+		station_stop_left = config.station_stop_seconds
+		train.hold(TrainMovement.State.AT_STATION, cruise)
+		result["station_stop"] = true
+	result["state_changed"] = train.state != previous_state
 	return result
 
 
 ## Aplica `elapsed_seconds` de progresso offline. Retorna o resumo:
 ## { "seconds", "stock_delta", "distance", "stations": [índices], "failures",
 ##   "downtime", "auto_repairs", "auto_cost", "waiting_at_station" }.
+## Offline não há inércia: o trem anda em cruzeiro (sem impulso da caldeira).
 func apply_offline(elapsed_seconds: float) -> Dictionary:
 	var seconds := OfflineProgress.clamp_elapsed(elapsed_seconds, config.offline_max_seconds)
 	var effective: float = seconds * config.offline_efficiency
 	var stock_before := stock.amount
-	var fuel := stock.amount + tank.current
 
 	# Caminho B: no máximo até a próxima estação.
 	var max_distance := INF
 	if config.offline_stop_at_next_station and not route.is_complete():
 		max_distance = maxf(0.0, route.target_distance(route.reached_count) - train.distance_m)
 
-	var result := OfflineProgress.simulate(effective, total_production(), fuel, train, maintenance, route, max_distance)
+	var result := OfflineProgress.simulate(effective, total_production(), stock.amount, train, maintenance, route, max_distance)
 
-	var total_fuel := maxf(0.0, fuel + float(result["coal_delta"]))
-	tank.current = minf(tank.capacity, total_fuel)
-	stock.amount = total_fuel - tank.current
+	stock.amount = maxf(0.0, stock.amount + float(result["coal_delta"]))
 	var distance := float(result["distance"])
 	if is_finite(max_distance) and distance >= max_distance - 0.001:
 		distance = max_distance  # chega exatamente na estação
 	train.distance_m += distance
 	var reached := route.update(train.distance_m)
+	# Ao abrir, o trem parte do zero (acelerando) ou está parado na plataforma.
+	train.current_speed = 0.0
+	train.state = TrainMovement.State.ACCELERATING
+	if not reached.is_empty() and stop_at_stations:
+		station_stop_left = config.station_stop_seconds
+		train.state = TrainMovement.State.AT_STATION
 	return {
 		"seconds": seconds,
 		"stock_delta": stock.amount - stock_before,
@@ -329,7 +384,7 @@ func to_save(saved_at_unix: float) -> Dictionary:
 		"save_version": SAVE_VERSION,
 		"saved_at": saved_at_unix,
 		"stock": stock.amount,
-		"tank": tank.current,
+		"stop_at_stations": stop_at_stations,
 		"producers": levels,
 		"upgrades_purchased": upgrades.purchased_ids(),
 		"distance_m": train.distance_m,
@@ -339,7 +394,7 @@ func to_save(saved_at_unix: float) -> Dictionary:
 	}
 
 
-## Carrega um save (v1 a v4). Saves sem componentes começam com tudo a 100%. As estações alcançadas são recalculadas
+## Carrega um save (v1 a v5). Saves sem componentes começam com tudo a 100%. As estações alcançadas são recalculadas
 ## pela distância, sem disparar eventos.
 func load_save(data: Dictionary) -> void:
 	var version := int(data.get("save_version", 1))
@@ -355,7 +410,6 @@ func load_save(data: Dictionary) -> void:
 			if upgrades.has(id):
 				upgrades.mark_purchased(id)
 		stock.amount = maxf(0.0, float(data.get("stock", 0.0)))
-		tank.current = clampf(float(data.get("tank", tank.capacity)), 0.0, tank.capacity)
 	else:
 		# Fase 0: só existia o Foguista.
 		producer("foguista").level = maxi(0, int(data.get("producer_level", 0)))
@@ -364,10 +418,12 @@ func load_save(data: Dictionary) -> void:
 			upgrades.mark_purchased("station_0")
 		if version == 2:
 			stock.amount = maxf(0.0, float(data.get("stock", 0.0)))
-			tank.current = clampf(float(data.get("tank", tank.capacity)), 0.0, tank.capacity)
 		else:
 			stock.amount = maxf(0.0, float(data.get("coal", 0.0)))
-			tank.current = tank.capacity
+	# v2 a v4 tinham reservatório: o carvão dele volta para o estoque.
+	if version < 5:
+		stock.amount += maxf(0.0, float(data.get("tank", 0.0)))
+	stop_at_stations = bool(data.get("stop_at_stations", true))
 
 	if version >= 4:
 		var saved: Dictionary = data.get("components", {})

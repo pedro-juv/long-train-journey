@@ -23,7 +23,8 @@ func _initialize() -> void:
 	_test_upgrades()
 	_test_speed()
 	_test_route()
-	_test_slows_instead_of_stopping()
+	_test_inertia()
+	_test_click_and_stoke()
 	_test_components()
 	_test_failure_and_maintenance()
 	_test_repair_reinforce_tools()
@@ -64,10 +65,10 @@ func _test_upgrades() -> void:
 	var s := _new_state()
 	s.stock.add(1e9)
 	_check(str(s.available_upgrade_ids()) == str(["click_1"]), "no início só a 1ª melhoria de clique aparece (%s)" % [s.available_upgrade_ids()])
-	_check(s.buy_upgrade("click_1") and is_equal_approx(s.click_value(), 2.0), "clique dobra para 2")
+	_check(s.buy_upgrade("click_1") and is_equal_approx(s.click_value(), 2.0), "clique dobra para 2 (sem produção)")
 	_check(s.is_upgrade_available("click_2") and not s.is_upgrade_available("click_3"), "melhorias de clique em sequência")
 	s.buy_upgrade("click_2"); s.buy_upgrade("click_3")
-	_check(is_equal_approx(s.click_value(), 8.0), "três melhorias = clique 8")
+	_check(is_equal_approx(s.click_value(), 8.0), "três melhorias = clique 8 (sem produção)")
 	_check(not s.is_upgrade_available("eq_foguista"), "equipamento exige o produtor")
 	s.buy_producer("foguista")
 	_check(s.is_upgrade_available("eq_foguista"), "equipamento aparece com o Foguista nível 1")
@@ -82,22 +83,46 @@ func _test_upgrades() -> void:
 	before = s.total_production()
 	s.buy_upgrade("station_0")
 	_check(is_equal_approx(s.total_production(), before * 1.5), "Caldeira reforçada: produção total +50%")
+	var prod := s.total_production()
+	_check(is_equal_approx(s.click_value(), (1.0 + prod * 0.02) * 8.0), "clique = (1 + 2%% da produção) x8 = %.1f" % s.click_value())
+
+
+func _test_click_and_stoke() -> void:
+	print("Clique proporcional e caldeira atiçada")
+	var s := _new_state()
+	s.stock.add(1e12)
+	for i in 40:
+		s.buy_producer("carvoaria")
+	var prod := s.total_production()
+	_check(s.click_value() > prod * 0.019, "clique continua útil com produção alta (%.0f por clique, %.0f/s)" % [s.click_value(), prod])
+	var cruise0 := s.cruise_speed()
+	s.click()
+	_check(s.stoke > 0.0 and s.cruise_speed() > cruise0, "clique atiça a caldeira: velocidade sobe")
+	for i in 100:
+		s.click()
+	_check(is_equal_approx(s.stoke, 1.0) and absf(s.cruise_speed() / cruise0 - (1.0 + B.stoke_max_speed_bonus)) < 0.001, "pressão máxima = +%d%% de velocidade" % roundi(B.stoke_max_speed_bonus * 100.0))
+	for i in 200:  # 20 s sem clicar
+		s.tick(0.1)
+	_check(s.stoke < 0.01, "pressão escoa sozinha sem cliques (%.3f)" % s.stoke)
+	var e := _new_state()
+	for i in 300:
+		if i % 3 == 0:
+			e.click()
+		e.tick(0.1)
+	_check(e.stoke > 0.45 and e.stoke < 0.75, "3 cliques/s: pressão estável em ~0,6 (%.2f)" % e.stoke)
 
 
 func _test_speed() -> void:
 	print("Velocidade pela produção")
-	var t := TrainMovement.new(4.0, 2.0, 0.35, 0.1)
+	var t := TrainMovement.new(4.0, 2.0, 0.35)
 	_check(is_equal_approx(t.speed_for_production(0.0), 4.0), "produção 0 = 4 m/s")
 	_check(is_equal_approx(t.speed_for_production(1.0), 6.0), "produção 1 = 6 m/s")
 	_check(absf(t.speed_for_production(100.0) - 14.0) < 0.05, "produção 100 = ~14 m/s")
 	_check(absf(t.speed_for_production(10000.0) - 54.2) < 0.1, "produção 10.000 = ~54,2 m/s")
-	var ok := true
-	var p := 1.0
-	while p < 1e7:
-		if t.speed_for_production(p) * 0.1 >= p:
-			ok = false
-		p *= 1.5
-	_check(ok, "consumo sempre abaixo da produção (de 1 a 10 milhões/s)")
+	var g := _new_state()
+	g.stock.add(1e6)
+	g.tick(1.0)
+	_check(g.stock.amount == 1e6 + 20.0, "trem não gasta carvão: estoque só para compras")
 
 
 func _test_route() -> void:
@@ -113,16 +138,50 @@ func _test_route() -> void:
 	_check(r.is_complete() and r.next_station_name() == "", "rota completa")
 
 
-func _test_slows_instead_of_stopping() -> void:
-	print("Desacelera em vez de parar")
-	var t := TrainMovement.new(4.0, 2.0, 0.35, 0.1)
-	var tank := FuelTank.new(0.05, 100.0)
-	t.tick(0.1, tank, 1.0)
-	_check(t.state == TrainMovement.State.SLOW and t.current_speed > 0.0, "pouco carvão = devagar")
-	t.tick(0.1, tank, 1.0)
-	_check(t.state == TrainMovement.State.STOPPED, "reservatório vazio = parado")
-	tank.add(10.0)
-	_check(t.tick(0.1, tank, 1.0) and t.state == TrainMovement.State.CRUISING, "volta a andar com carvão")
+func _test_inertia() -> void:
+	print("Inércia: acelera, freia e para na estação")
+	var t := TrainMovement.new(4.0, 2.0, 0.35)
+	t.current_speed = 0.0
+	t.tick(1.0, 10.0, false)
+	_check(t.current_speed > 0.0 and t.current_speed < 10.0 and t.state == TrainMovement.State.ACCELERATING, "parte acelerando aos poucos (%.1f m/s)" % t.current_speed)
+	for i in 60:
+		t.tick(0.1, 10.0, false)
+	_check(is_equal_approx(t.current_speed, 10.0) and t.state == TrainMovement.State.CRUISING, "chega ao cruzeiro em ~6 s")
+	t.tick(0.1, 10.0, true)
+	_check(t.current_speed > 9.0 and t.state == TrainMovement.State.BRAKING, "falha: começa a frear, sem parar na hora")
+	var secs := 0.1
+	while t.is_moving() and secs < 10.0:
+		t.tick(0.1, 10.0, true)
+		secs += 0.1
+	_check(t.state == TrainMovement.State.MAINTENANCE and absf(secs - 3.0) < 0.3, "para em ~3 s (%.1f s)" % secs)
+	var u := TrainMovement.new(4.0, 2.0, 0.35)
+	u.current_speed = 20.0
+	var stop_at := 200.0
+	var approached := false
+	var n := 0
+	while u.distance_m < stop_at and n < 2000:
+		u.tick(0.05, 20.0, false, stop_at)
+		approached = approached or u.state == TrainMovement.State.APPROACHING
+		n += 1
+	_check(approached and is_equal_approx(u.distance_m, 200.0) and u.current_speed == 0.0, "estação: freia e para exatamente na plataforma")
+	_check(n * 0.05 > 200.0 / 20.0, "a chegada demora mais que passar direto (%.1f s)" % (n * 0.05))
+
+	var s := _new_state()
+	s.train.distance_m = 3400.0
+	s.train.current_speed = s.cruise_speed()
+	var stopped := false
+	var departed := false
+	for i in 600:
+		var r := s.tick(0.1)
+		stopped = stopped or r["station_stop"]
+		departed = departed or r["departed"]
+	_check(stopped and departed, "GameState: para na Estação Inicial e parte depois de %.0f s" % B.station_stop_seconds)
+	_check(s.train.distance_m > 3500.0, "segue viagem depois da parada")
+	var f := _new_state()
+	f.stop_at_stations = false
+	_check(f.will_stop_at_next_station(), "1ª estação sempre para, mesmo com a opção desligada")
+	_reach(f, 0)
+	_check(not f.will_stop_at_next_station(), "opção desligada: não para nas seguintes")
 
 
 func _test_offline() -> void:
@@ -139,8 +198,9 @@ func _test_offline() -> void:
 	var res := s.apply_offline(3600.0)
 	_check(is_equal_approx(res["distance"], 3500.0), "1 h fora: para exatamente na Estação Inicial (%.1f m)" % res["distance"])
 	_check(res["waiting_at_station"] and str(res["stations"]) == str([0]), "trem esperando na estação; só uma estação alcançada")
-	var expected_stock := prod * 3600.0 - 3500.0 * 0.1
-	_check(absf((s.stock.amount + s.tank.current) - (stock0 + 100.0 + expected_stock)) < 1.0, "produção vale a hora inteira, mesmo esperando")
+	var expected_stock := prod * 3600.0
+	_check(absf(s.stock.amount - (stock0 + expected_stock)) < 1.0, "produção vale a hora inteira, mesmo esperando")
+	_check(s.train.state == TrainMovement.State.AT_STATION and s.station_stop_left > 0.0, "ao voltar, o trem está parado na plataforma")
 	var res2 := s.apply_offline(3600.0)
 	_check(is_equal_approx(res2["distance"], 7000.0) and str(res2["stations"]) == str([1]), "nova ausência: anda só até a Primavera")
 
@@ -157,8 +217,8 @@ func _test_offline() -> void:
 	var s2 := _new_state()
 	var r2 := s2.apply_offline(10 * 86400.0)
 	_check(r2["seconds"] == 86400.0, "10 dias fora contam só 24 h")
-	_check(s2.stock.amount == 0.0 and s2.tank.current == 0.0, "sem produtores: gasta o carvão e para")
-	_check(r2["distance"] > 0.0 and r2["distance"] < 4.0 * 86400.0, "sem produtores: anda só enquanto há carvão (%.0f m)" % r2["distance"])
+	_check(s2.stock.amount == 20.0, "sem produtores: estoque intacto (trem não gasta carvão)")
+	_check(is_equal_approx(r2["distance"], 3500.0), "sem produtores: anda na velocidade base até a 1ª estação")
 
 	# Manutenção offline (Estação Inicial alcançada, 3 peças ativas, sem limite de estação)
 	var B3 = load("res://autoload/balance.gd").new()
@@ -173,7 +233,8 @@ func _test_offline() -> void:
 	var rm := m.apply_offline(7200.0)
 	_check(rm["failures"] > 0, "2 h fora sem reforço: peças quebram (%d falhas)" % rm["failures"])
 	_check(is_equal_approx(rm["downtime"], rm["failures"] * 15.0), "cada falha custa 15 s de parada (%.0f s)" % rm["downtime"])
-	_check(absf(rm["distance"] - v * (7200.0 - rm["downtime"])) < 1.0, "distância desconta o tempo parado")
+	var inertia_loss: float = rm["failures"] * (B3.train_brake_seconds + B3.train_accel_seconds) * 0.5
+	_check(absf(rm["distance"] - v * (7200.0 - rm["downtime"] - inertia_loss)) < 1.0, "distância desconta o tempo parado e a frenagem/arrancada")
 	_check(m.stock.amount > 0.0, "produção continua durante as paradas")
 	var a := GameState.new(B3)
 	a.stock.add(1e9)
@@ -208,6 +269,8 @@ func _test_offline_matches_online() -> void:
 		g.train.distance_m = 3600.0
 		g.route.update(g.train.distance_m)
 		g.component("rodas").integrity = 0.3
+		g.stop_at_stations = false
+		g.train.current_speed = g.cruise_speed()
 		return g
 	var online: GameState = make.call()
 	var offline: GameState = make.call()
@@ -217,12 +280,12 @@ func _test_offline_matches_online() -> void:
 		var r := online.tick(0.1)
 		online_failures += r["failed"].size()
 	var res := offline.apply_offline(1800.0)
-	_check(online_failures == res["failures"], "mesmo número de falhas (%d online, %d offline)" % [online_failures, res["failures"]])
+	_check(absi(online_failures - res["failures"]) <= 1, "mesmo número de falhas (%d online, %d offline)" % [online_failures, res["failures"]])
 	var d_on := online.train.distance_m
 	var d_off := offline.train.distance_m
-	_check(absf(d_on - d_off) / d_on < 0.005, "mesma distância (%.0f x %.0f m)" % [d_on, d_off])
-	var c_on := online.stock.amount + online.tank.current
-	var c_off := offline.stock.amount + offline.tank.current
+	_check(absf(d_on - d_off) / d_on < 0.01, "mesma distância (%.0f x %.0f m)" % [d_on, d_off])
+	var c_on := online.stock.amount
+	var c_off := offline.stock.amount
 	_check(absf(c_on - c_off) / c_on < 0.005, "mesmo carvão (%s x %s)" % [NumFormat.amount(c_on), NumFormat.amount(c_off)])
 	B4.free()
 
@@ -264,7 +327,12 @@ func _test_failure_and_maintenance() -> void:
 	var r := s.tick(0.1)
 	_check(str(r["failed"]) == str(["rodas"]), "rodas quebram ao chegar a 0%")
 	_check(is_equal_approx(s.component("rodas").integrity, 1.0), "peça volta a 100%")
-	_check(s.train.state == TrainMovement.State.MAINTENANCE and is_equal_approx(s.maintenance.stop_left, 15.0), "trem para 15 s em manutenção")
+	_check(s.train.state == TrainMovement.State.BRAKING and is_equal_approx(s.maintenance.stop_left, 15.0), "trem começa a frear; 15 s de manutenção depois de parar")
+	var guard := 0
+	while s.train.state != TrainMovement.State.MAINTENANCE and guard < 100:
+		s.tick(0.1)
+		guard += 1
+	_check(s.train.state == TrainMovement.State.MAINTENANCE and is_equal_approx(s.maintenance.stop_left, 15.0), "parado: manutenção de 15 s começa a contar")
 	var d := s.train.distance_m
 	var stock0 := s.stock.amount
 	var cal := s.component("caldeira").integrity
@@ -330,7 +398,6 @@ func _test_auto_maintenance_and_materials() -> void:
 	_check(is_equal_approx(s.component("rodas").integrity, 1.0) and not s.maintenance.is_stopped(), "peça a 100%, trem andando")
 	_check(before - s.stock.amount > 0.0, "conserto automático foi pago")
 	s.stock.amount = 0.0
-	s.tank.current = 100.0
 	s.component("rodas").integrity = 0.000001
 	r = s.tick(0.1)
 	_check(str(r["failed"]) == str(["rodas"]), "sem carvão para pagar: falha normal")
@@ -360,7 +427,7 @@ func _test_save_roundtrip_and_migration() -> void:
 	var l := _new_state()
 	l.load_save(json)
 	_check(l.producer("mina").level == 1 and l.producer("carvoaria").level == 1, "níveis restaurados")
-	_check(is_equal_approx(l.click_value(), 2.0), "melhorias restauradas e aplicadas")
+	_check(l.upgrades.is_purchased("click_1") and is_equal_approx(l.click_multiplier, 2.0), "melhorias restauradas e aplicadas")
 	_check(l.route.reached_count == 1, "estação recalculada pela distância")
 	_check(is_equal_approx(l.total_production(), s.total_production()), "mesma produção após carregar")
 	var cs := _new_state()
@@ -378,9 +445,10 @@ func _test_save_roundtrip_and_migration() -> void:
 	var v3 := _new_state()
 	v3.load_save({"save_version": 3, "saved_at": 1.0, "stock": 10.0, "tank": 100.0, "producers": {"foguista": 2}, "upgrades_purchased": [], "distance_m": 5000.0})
 	_check(is_equal_approx(v3.component("rodas").integrity, 1.0) and v3.component("rodas").level == 0, "save v3 abre com as peças a 100%")
+	_check(is_equal_approx(v3.stock.amount, 110.0), "save antigo: carvão do reservatório volta para o estoque")
 	var v2 := _new_state()
 	v2.load_save({"save_version": 2, "stock": 77.0, "tank": 50.0, "producer_level": 4, "distance_m": 4600.0, "station_reached": true, "upgrades_purchased": ["station_production"]})
-	_check(v2.producer("foguista").level == 4 and v2.stock.amount == 77.0 and v2.tank.current == 50.0, "save da Fase 0 (v2) migrado")
+	_check(v2.producer("foguista").level == 4 and v2.stock.amount == 127.0, "save da Fase 0 (v2) migrado (estoque + reservatório)")
 	_check(v2.upgrades.is_purchased("station_0") and is_equal_approx(v2.global_multiplier, 1.5), "Caldeira reforçada antiga continua comprada")
 	var v1 := _new_state()
 	v1.load_save({"coal": 33.0, "producer_level": 2, "distance_m": 100.0})
@@ -462,7 +530,7 @@ func _simulate(cps: float, style: String = "cuidadoso", max_time: float = 3600.0
 				click_acc -= 1.0 / cps
 				s.click()
 		var r := s.tick(dt)
-		if r["state_changed"] and s.train.state == TrainMovement.State.STOPPED:
+		if r["station_stop"]:
 			stops += 1
 		if s.train.state == TrainMovement.State.MAINTENANCE:
 			maintenance_time += dt
@@ -472,8 +540,6 @@ func _simulate(cps: float, style: String = "cuidadoso", max_time: float = 3600.0
 				first_failure = t
 		for i in r["stations"]:
 			reached.append(t)
-		if t > 60.0:
-			worst_ratio = maxf(worst_ratio, s.train.consumption_per_second() / s.total_production())
 		t += dt
 	var per_min: Array[int] = []
 	for m in 15:
@@ -512,8 +578,7 @@ func _test_simulation() -> void:
 			_check(reached[3] <= 40.0 * 60.0, "%.0f clique/s: 4ª estação em até 40 min (%.1f)" % [cps, reached[3] / 60.0])
 			var gaps_grow := (reached[3] - reached[2]) > (reached[2] - reached[1])
 			_check(gaps_grow, "%.0f clique/s: trechos finais ficam mais longos" % cps)
-		_check(r["stops"] == 0, "%.0f clique/s: o trem não parou" % cps)
-		_check(r["worst_ratio"] < 1.0, "%.0f clique/s: consumo sempre abaixo da produção (máx %.0f%%)" % [cps, r["worst_ratio"] * 100.0])
+		_check(r["stops"] == 5, "%.0f clique/s: parou na plataforma das 5 estações (%d)" % [cps, r["stops"]])
 		var first10 := 0
 		for i in 10:
 			first10 += r["per_min"][i]

@@ -7,18 +7,31 @@ extends Node
 ## novo aqui não exige código novo.
 
 # ---------------------------------------------------------------------------
-# Estoque, reservatório e clique
+# Estoque e clique
 # ---------------------------------------------------------------------------
 
 ## Carvão no ESTOQUE ao começar uma partida nova (dá para contratar o Foguista).
+## O trem não gasta carvão (v0.2.0): o estoque serve só para compras.
 var initial_stock: float = 20.0
 
-## Capacidade do RESERVATÓRIO do trem. Começa cheio e é reabastecido
-## automaticamente a partir do estoque. O estoque não tem limite.
-var tank_capacity: float = 100.0
-
-## Carvão gerado por clique antes das melhorias de clique.
+## Carvão por clique = (coal_per_click + produção * click_production_fraction)
+##                     * multiplicador das pás.
+## A parte proporcional mantém o clique útil o jogo todo (estilo Clicker Heroes).
 var coal_per_click: float = 1.0
+
+## Fração da produção POR SEGUNDO que cada clique rende (0.02 = 2%).
+## Com as 3 pás (x8): 16% da produção por clique.
+var click_production_fraction: float = 0.02
+
+## "Atiçar a caldeira": cada clique soma pressão; a pressão dá velocidade extra
+## e escoa sozinha. Bônus = pressão (0 a 1) * stoke_max_speed_bonus.
+var stoke_per_click: float = 0.05
+## Bônus máximo de velocidade com a caldeira no máximo (0.3 = +30%).
+var stoke_max_speed_bonus: float = 0.3
+## Segundos para a pressão cair ~63% sem cliques (decaimento exponencial).
+## Equilíbrio: pressão ≈ cliques/s * stoke_per_click * stoke_decay_seconds
+## (3 cliques/s -> 0,6 -> +18% de velocidade).
+var stoke_decay_seconds: float = 4.0
 
 # ---------------------------------------------------------------------------
 # Produtores — cada um é uma unidade única com níveis
@@ -69,8 +82,8 @@ var upgrades: Array[Dictionary] = [
 	{"id": "station_0", "name": "Caldeira reforçada", "cost": 1500.0, "effect": "global_mult", "value": 1.5, "requires": {"station": 0}},
 	{"id": "station_1", "name": "Caldeira de alta pressão", "cost": 60000.0, "effect": "global_mult", "value": 1.5, "requires": {"station": 1}},
 	{"id": "station_2", "name": "Tiragem forçada", "cost": 600000.0, "effect": "global_mult", "value": 1.5, "requires": {"station": 2}},
-	{"id": "station_3", "name": "Superaquecedor", "cost": 2000000.0, "effect": "global_mult", "value": 1.5, "requires": {"station": 3}},
-	{"id": "station_4", "name": "Isolamento térmico", "cost": 6000000.0, "effect": "global_mult", "value": 1.5, "requires": {"station": 4}},
+	{"id": "station_3", "name": "Superaquecedor", "cost": 1400000.0, "effect": "global_mult", "value": 1.5, "requires": {"station": 3}},
+	{"id": "station_4", "name": "Isolamento térmico", "cost": 3000000.0, "effect": "global_mult", "value": 1.5, "requires": {"station": 4}},
 	# Manutenção (Fase 1B)
 	{"id": "tools", "name": "Kit de ferramentas", "cost": 50000.0, "effect": "maintenance_time_mult", "value": 0.6, "requires": {"station": 1}},
 ]
@@ -91,8 +104,17 @@ var train_speed_factor: float = 2.0
 ## que a produção). Principal ajuste de ritmo entre estações.
 var train_speed_exponent: float = 0.35
 
-## Carvão consumido por metro percorrido.
-var coal_per_meter: float = 0.1
+## Inércia: segundos para ir de parado à velocidade de cruzeiro.
+var train_accel_seconds: float = 6.0
+
+## Segundos para frear do cruzeiro até parar quando uma peça quebra.
+var train_brake_seconds: float = 3.0
+
+## Segundos para frear do cruzeiro até parar na plataforma (mais suave).
+var train_station_brake_seconds: float = 7.0
+
+## Segundos parado na plataforma de cada estação (quando "Parar nas estações" está ligado).
+var station_stop_seconds: float = 5.0
 
 # ---------------------------------------------------------------------------
 # Estações — rota contínua; cada trecho tem o dobro do anterior

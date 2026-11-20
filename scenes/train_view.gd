@@ -91,6 +91,14 @@ var _station_signs: Array[Dictionary] = []
 var _worn: Dictionary = {}
 var _worn_timer: float = 0.0
 var _in_maintenance: bool = false
+## Estado atual do trem (TrainMovement.State) e pressão da caldeira (0 a 1).
+var _train_state: int = TrainMovement.State.CRUISING
+var _stoke: float = 0.0
+## Peça que quebrou (para soltar vapor dela enquanto freia/conserta).
+var _failed_id: String = ""
+## Placa da estação em aproximação (desliza até parar ao lado do trem).
+var _approach_sign: Dictionary = {}
+var _approach_start_m: float = 0.0
 
 var _rng := RandomNumberGenerator.new()
 var _font: Font
@@ -109,11 +117,12 @@ func _ready() -> void:
 	EventBus.station_reached.connect(_on_station_reached)
 	EventBus.game_loaded.connect(_on_game_loaded)
 	EventBus.component_failed.connect(_on_component_failed)
-	EventBus.train_state_changed.connect(func(st): _in_maintenance = st == TrainMovement.State.MAINTENANCE)
+	EventBus.train_state_changed.connect(_on_train_state_changed)
 
 
-func _on_speed_changed(speed_mps: float, _target: float, _cps: float) -> void:
+func _on_speed_changed(speed_mps: float, _target: float, stoke: float) -> void:
 	_speed_mps = speed_mps
+	_stoke = stoke
 	_speed_ratio = clampf(speed_mps / full_effect_speed, 0.0, 1.0)
 
 
@@ -135,7 +144,8 @@ func _on_station_reached(index: int, station_name: String) -> void:
 		_theme_id = new_theme
 		_blend = 0.0
 		theme_changed.emit(_theme_id)
-	_station_signs.append({"x": get_viewport_rect().size.x + 40.0, "name": station_name})
+	if _approach_sign.is_empty() or _approach_sign["name"] != station_name:
+		_station_signs.append({"x": get_viewport_rect().size.x + 40.0, "name": station_name})
 	for i in 70:
 		_celebration.append({
 			"pos": Vector2(LOCO_X + 200.0, GROUND_Y - 190.0),
@@ -146,9 +156,34 @@ func _on_station_reached(index: int, station_name: String) -> void:
 		})
 
 
+func _on_train_state_changed(st: int) -> void:
+	var previous := _train_state
+	_train_state = st
+	_in_maintenance = st == TrainMovement.State.MAINTENANCE or st == TrainMovement.State.BRAKING
+	if not _in_maintenance:
+		_failed_id = ""
+	if st == TrainMovement.State.APPROACHING and previous != TrainMovement.State.APPROACHING:
+		_start_station_approach()
+	elif st != TrainMovement.State.APPROACHING and st != TrainMovement.State.AT_STATION:
+		_approach_sign = {}
+
+
+## A placa entra pela direita e desliza conforme a distância que falta,
+## parando com a plataforma embaixo do trem.
+func _start_station_approach() -> void:
+	var game := get_node_or_null(game_path)
+	if not game or not game.state:
+		return
+	var st: GameState = game.state
+	_approach_sign = {"x": get_viewport_rect().size.x + 40.0, "name": st.route.next_station_name(), "start_x": get_viewport_rect().size.x + 40.0}
+	_approach_start_m = st.route.target_distance(st.route.reached_count) - st.train.distance_m
+	_station_signs.append(_approach_sign)
+
+
 ## Peça quebrou: nuvem de vapor e faíscas em volta da locomotiva.
-func _on_component_failed(_id: String, _name: String) -> void:
+func _on_component_failed(id: String, _name: String) -> void:
 	_in_maintenance = true
+	_failed_id = id
 	for i in 26:
 		_smoke.append({
 			"pos": Vector2(LOCO_X + _rng.randf_range(60, 320), GROUND_Y - _rng.randf_range(30, 130)),
@@ -226,9 +261,49 @@ func _process(delta: float) -> void:
 		_worn_timer = 0.3
 		_refresh_worn()
 	_emit_wear_effects(delta)
+	_emit_state_effects(delta)
 
 	_update_particles(delta, scroll)
 	queue_redraw()
+
+
+## Efeitos de frenagem, falha e caldeira atiçada.
+func _emit_state_effects(delta: float) -> void:
+	var braking := _train_state == TrainMovement.State.BRAKING
+	var approaching := _train_state == TrainMovement.State.APPROACHING
+	# Faíscas das rodas travando (forte na falha, leve chegando na estação).
+	if (braking or approaching) and _speed_mps > 0.3:
+		var rate := 40.0 if braking else 10.0
+		if _rng.randf() < delta * rate:
+			var wx: float = [80.0, 150.0, 220.0][_rng.randi() % 3]
+			for i in (3 if braking else 1):
+				_sparks.append({"pos": Vector2(LOCO_X + wx + _rng.randf_range(-8, 8), GROUND_Y - 2.0),
+					"vel": Vector2(_rng.randf_range(80, 260), _rng.randf_range(-140, -30)), "life": _rng.randf_range(0.25, 0.5)})
+	# Vapor escapando da peça quebrada (freando e durante o conserto).
+	if _in_maintenance and _rng.randf() < delta * (14.0 if braking else 5.0):
+		var at := _failed_part_position()
+		_smoke.append({"pos": at + Vector2(_rng.randf_range(-12, 12), _rng.randf_range(-8, 8)),
+			"vel": Vector2(_rng.randf_range(-40, 40), _rng.randf_range(-110, -40)), "r": _rng.randf_range(5, 10),
+			"life": 1.0, "decay": _rng.randf_range(0.7, 1.1), "shade": -0.6 if braking else 1.0, "steam": not braking})
+	# Caldeira atiçada: brasas extras saindo da chaminé.
+	if _stoke > 0.15 and _speed_mps > 0.3 and _rng.randf() < delta * 12.0 * _stoke:
+		var chimney := Vector2(LOCO_X + 245.0, GROUND_Y - 178.0 + _bob())
+		_sparks.append({"pos": chimney, "vel": Vector2(_rng.randf_range(-100, 30), _rng.randf_range(-260, -120)), "life": _rng.randf_range(0.4, 0.9)})
+
+
+## Onde fica (aproximadamente) cada peça na locomotiva.
+func _failed_part_position() -> Vector2:
+	match _failed_id:
+		"rodas", "freios":
+			return Vector2(LOCO_X + 150.0, GROUND_Y - 20.0)
+		"pistoes":
+			return Vector2(LOCO_X + 286.0, GROUND_Y - 38.0)
+		"chamine":
+			return Vector2(LOCO_X + 245.0, GROUND_Y - 175.0)
+		"engates":
+			return Vector2(LOCO_X - 8.0, GROUND_Y - 37.0)
+		_:
+			return Vector2(LOCO_X + 170.0, GROUND_Y - 110.0)  # caldeira
 
 
 func _emit_puff() -> void:
@@ -279,7 +354,18 @@ func _update_particles(delta: float, scroll: float) -> void:
 		c["life"] -= delta
 	_celebration = _celebration.filter(func(c): return c["life"] > 0.0)
 
+	var game := get_node_or_null(game_path)
 	for station_sign in _station_signs:
+		if station_sign == _approach_sign and game and game.state:
+			var st: GameState = game.state
+			var stop_x := LOCO_X - 20.0
+			var remaining := 0.0
+			if _train_state == TrainMovement.State.APPROACHING and not st.route.is_complete():
+				remaining = st.route.target_distance(st.route.reached_count) - st.train.distance_m
+			var f := clampf(remaining / maxf(_approach_start_m, 1.0), 0.0, 1.0)
+			# curva suave: a placa desacelera junto com o trem
+			station_sign["x"] = stop_x + (float(station_sign["start_x"]) - stop_x) * f * f
+			continue
 		station_sign["x"] -= scroll * delta
 	_station_signs = _station_signs.filter(func(s): return s["x"] > -420.0)
 
@@ -797,6 +883,9 @@ func _draw_train() -> void:
 	draw_rect(Rect2(b + Vector2(14, -146), Vector2(46, 38)), Color(0.12, 0.08, 0.05))
 	var flicker := 0.85 + 0.15 * sin(_time * 11.0) * sin(_time * 3.7)
 	draw_rect(Rect2(b + Vector2(16, -144), Vector2(42, 34)), Color(WARM_LIGHT, 0.75 * flicker))  # luz da fornalha
+	if _stoke > 0.02:  # caldeira atiçada: fornalha mais viva e brilho em volta
+		draw_rect(Rect2(b + Vector2(16, -144), Vector2(42, 34)), Color(1.0, 0.45, 0.1, 0.6 * _stoke * flicker))
+		draw_circle(b + Vector2(37, -127), 30.0 + 14.0 * _stoke, Color(1.0, 0.5, 0.15, 0.22 * _stoke))
 	draw_rect(Rect2(b + Vector2(14, -146), Vector2(46, 3)), BRASS)
 	# Manômetro (ponteiro sobe com a velocidade)
 	var gauge := b + Vector2(38, -78)
@@ -884,6 +973,14 @@ func _draw_maintenance_icon() -> void:
 	if not _in_maintenance:
 		return
 	var c := Vector2(LOCO_X + 38.0, GROUND_Y - 215.0)
+	if _train_state == TrainMovement.State.BRAKING:
+		# Alerta piscando enquanto o trem freia por causa da falha.
+		if fmod(_time, 0.5) < 0.32:
+			var tri := PackedVector2Array([c + Vector2(0, -30), c + Vector2(28, 20), c + Vector2(-28, 20)])
+			draw_colored_polygon(tri, Color(0.95, 0.25, 0.15))
+			draw_polyline(tri + PackedVector2Array([tri[0]]), BRASS, 3.0)
+			draw_string(_font, c + Vector2(-20, 15), "!", HORIZONTAL_ALIGNMENT_CENTER, 40, 30, Color.WHITE)
+		return
 	var pulse := 0.6 + 0.4 * sin(_time * 6.0)
 	draw_circle(c, 34.0, Color(1.0, 0.6, 0.2, 0.18 * pulse))
 	draw_colored_polygon(_gear(c, 24, 17, 10, _time * 2.5), BRASS)

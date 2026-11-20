@@ -26,7 +26,7 @@ static func clamp_elapsed(elapsed_seconds: float, max_seconds: float) -> float:
 ## andamento em `maint`. Retorna:
 ## { "coal_delta", "distance", "failures", "auto_repairs", "auto_cost",
 ##   "downtime", "waiting_at_station" }
-static func simulate(seconds: float, production: float, fuel_available: float, train: TrainMovement,
+static func simulate(seconds: float, production: float, stock_available: float, train: TrainMovement,
 		maint: Maintenance, route: StationTracker, max_distance: float) -> Dictionary:
 	var out := {"coal_delta": 0.0, "distance": 0.0, "failures": 0, "auto_repairs": 0,
 		"auto_cost": 0.0, "downtime": 0.0, "waiting_at_station": false}
@@ -34,9 +34,8 @@ static func simulate(seconds: float, production: float, fuel_available: float, t
 		return out
 
 	var speed := train.speed_for_production(production)
-	var consumption := speed * train.coal_per_meter
 	var t := 0.0
-	var coal := fuel_available
+	var coal := stock_available
 
 	# Termina uma parada que estava em andamento quando o jogo fechou.
 	if maint.stop_left > 0.0:
@@ -48,12 +47,6 @@ static func simulate(seconds: float, production: float, fuel_available: float, t
 		t += d
 		out["downtime"] += d
 		coal += production * d
-
-	if production < consumption:
-		# Sem produção suficiente (ex.: nenhum produtor): anda até o carvão
-		# acabar e depois só no que a produção sustenta. Peças ainda não
-		# existem nesse ponto do jogo, então não entram aqui.
-		return _simulate_underfed(seconds - t, production, coal, fuel_available, speed, train.coal_per_meter, max_distance, out)
 
 	var comps := maint.active_components(route)
 	var auto_cost := maint.auto_repair_cost(production)
@@ -77,7 +70,7 @@ static func simulate(seconds: float, production: float, fuel_available: float, t
 			c.integrity -= c.wear_rate(speed) * step
 		dist += speed * step
 		t += step
-		coal += (production - consumption) * step
+		coal += production * step
 		if event == null:
 			continue
 		events += 1
@@ -99,30 +92,15 @@ static func simulate(seconds: float, production: float, fuel_available: float, t
 		t += stop
 		out["downtime"] += stop
 		coal += production * stop
+		# Inércia: frear e arrancar de novo custam ~metade do tempo de cada fase.
+		var inertia := minf((train.brake_seconds + train.accel_seconds) * 0.5, seconds - t)
+		t += inertia
+		coal += production * inertia
 
 	# Esperando na estação (ou fim do tempo): a produção continua.
 	if t < seconds:
 		coal += production * (seconds - t)
 	out["distance"] = dist
-	out["coal_delta"] = coal - fuel_available
+	out["coal_delta"] = coal - stock_available
 	return out
 
-
-static func _simulate_underfed(seconds: float, production: float, coal: float, fuel_start: float,
-		speed: float, coal_per_meter: float, max_distance: float, out: Dictionary) -> Dictionary:
-	var net := production - speed * coal_per_meter
-	var full_time := minf(seconds, coal / -net)
-	var distance := speed * full_time
-	var coal_end := coal + net * full_time
-	var remaining := seconds - full_time
-	if remaining > 0.0:
-		distance += (production / coal_per_meter) * remaining
-	if distance > max_distance:
-		# Chegou à estação antes do fim: só gastou o carvão até lá.
-		out["waiting_at_station"] = true
-		var used := max_distance * coal_per_meter
-		coal_end = maxf(0.0, coal + production * seconds - used)
-		distance = max_distance
-	out["distance"] = distance
-	out["coal_delta"] = coal_end - fuel_start
-	return out

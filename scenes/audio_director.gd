@@ -59,6 +59,8 @@ func _ready() -> void:
 	EventBus.producer_bought.connect(_on_producer_bought)
 	EventBus.upgrade_purchased.connect(func(_id): _play("buy", 0.9))
 	EventBus.station_reached.connect(_on_station_reached)
+	EventBus.train_state_changed.connect(_on_train_state_changed)
+	EventBus.station_departed.connect(func(): _play("whistle", 1.18))
 	EventBus.component_failed.connect(func(_id, _n): _play("failure", randf_range(0.95, 1.05)))
 	EventBus.component_repaired.connect(func(_id, automatic): _play("auto_repair" if automatic else "repair", randf_range(0.95, 1.08)))
 	EventBus.component_reinforced.connect(func(_id, _lvl): _play("buy", 0.85))
@@ -139,8 +141,20 @@ func _on_producer_bought(_id: String, _level: int, milestone: bool) -> void:
 		_play("fanfare", 1.0)
 
 
+var _train_state: int = TrainMovement.State.CRUISING
+
+
+## Apito longo ao começar a frear para a estação.
+func _on_train_state_changed(st: int) -> void:
+	if st == TrainMovement.State.APPROACHING and _train_state != TrainMovement.State.APPROACHING:
+		_play("whistle", 0.92)
+	_train_state = st
+
+
 func _on_station_reached(_index: int, _station_name: String) -> void:
-	_play("whistle", 1.0)
+	# Passando direto: apita na chegada. Parando: o apito já tocou na aproximação.
+	if _train_state != TrainMovement.State.AT_STATION and _train_state != TrainMovement.State.APPROACHING:
+		_play("whistle", 1.0)
 	_play("fanfare", 1.0)
 
 

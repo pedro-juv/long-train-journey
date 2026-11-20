@@ -7,6 +7,32 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.2.0] — 2026-11-20 · Movimento com inércia, caldeira e estações
+
+**Removido**
+- Reservatório do trem e consumo de carvão por metro: o carvão agora serve só
+  para compras (saves antigos devolvem o carvão do reservatório ao estoque)
+- Linha "Trem: EM MOVIMENTO": o estado só aparece em falha, manutenção e estação
+
+**Movimento**
+- Inércia: o trem acelera (~6 s) e freia aos poucos, sem saltos de velocidade
+- Falha de peça: freia em ~3 s com faíscas nas rodas, vapor/fumaça saindo da
+  peça e alerta piscando; o conserto começa depois de parar; volta acelerando
+- Estações: freia suave (~7 s), para na plataforma com a placa ao lado do trem,
+  apita, espera 5 s e parte. Botão "Parar nas estações: sim/não" (a 1ª estação
+  sempre para). Ao voltar do offline, o trem está parado na plataforma
+
+**Clique**
+- Botão vira "Atiçar a caldeira": rende 1 + 2% da produção por segundo,
+  multiplicado pelas pás — continua útil o jogo todo
+- Cada clique soma pressão à caldeira (barra laranja): até +30% de velocidade,
+  escoando sozinha em poucos segundos. Fornalha brilha e solta brasas
+
+**Balanceamento**
+- Superaquecedor 2 mi → 1,4 mi; Isolamento térmico 6 mi → 3 mi
+- Corrigidas as 2 falhas pendentes: toda melhoria de estação fica comprável em
+  até 2 min após chegar (0, 1 e 3 cliques/s)
+
 ## [0.1.0] — 2026-11-20 · Versão inicial
 
 Primeira versão no GitHub: protótipo com Fase 0, Fase 1A e Fase 1B.
