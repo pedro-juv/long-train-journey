@@ -7,6 +7,13 @@ $out   = Join-Path $root "build\web"
 $port  = 8060
 
 New-Item -ItemType Directory -Force $out | Out-Null
+
+# Nome da branch + commit, mostrado no canto do jogo
+$branch = (git -C $root rev-parse --abbrev-ref HEAD).Trim()
+$commit = (git -C $root rev-parse --short HEAD).Trim()
+$dirty  = if (git -C $root status --porcelain) { " *" } else { "" }
+Set-Content (Join-Path $root "build_info.txt") "$branch ($commit$dirty)" -Encoding ascii
+Write-Host "Versao: $branch ($commit$dirty)"
 Write-Host "Exportando..."
 & $godot --headless --path $root --export-debug "Web" "$out\index.html"
 if (-not (Test-Path "$out\index.html")) { Write-Host "Falha na exportacao. Modelos de exportacao instalados?"; Read-Host "Enter para sair"; exit 1 }

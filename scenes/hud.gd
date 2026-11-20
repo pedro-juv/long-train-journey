@@ -88,6 +88,33 @@ func _ready() -> void:
 	_offline_ok.pressed.connect(func(): _offline_popup.visible = false)
 	_speed_hint.text = "A velocidade vem da produção e dos reforços das peças: toda compra acelera o trem."
 	_message_label.text = ""
+	_add_version_label()
+
+
+## Etiqueta no canto inferior direito com a branch/commit em teste.
+## Na exportação Web vem de res://build_info.txt (gerado pelo jogar-web.ps1);
+## no editor, lê direto o .git/HEAD.
+func _add_version_label() -> void:
+	var info := ""
+	if not OS.has_feature("editor") and FileAccess.file_exists("res://build_info.txt"):
+		info = FileAccess.get_file_as_string("res://build_info.txt").strip_edges()
+	elif FileAccess.file_exists("res://.git/HEAD"):
+		var head := FileAccess.get_file_as_string("res://.git/HEAD").strip_edges()
+		info = head.trim_prefix("ref: refs/heads/") if head.begins_with("ref:") else head.left(7)
+	var version := str(ProjectSettings.get_setting("application/config/version", ""))
+	var label := Label.new()
+	label.text = ("v" + version if version else "") + ("  ·  " + info if info else "")
+	if label.text.is_empty():
+		return
+	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_color_override("font_color", Color(C_CREAM, 0.75))
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	label.add_theme_constant_override("outline_size", 4)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE, 8)
+	label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	label.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	add_child(label)
 
 
 func _process(delta: float) -> void:

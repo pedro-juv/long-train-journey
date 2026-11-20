@@ -13,3 +13,7 @@ __pycache__/
 
 # Documentos de design (privados) — remova esta linha para publicar os .md
 *.md
+!CHANGELOG.md
+
+# Gerado pelo jogar-web.ps1
+build_info.txt
