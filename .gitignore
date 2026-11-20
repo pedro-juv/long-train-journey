@@ -1,0 +1,15 @@
+# Godot 4
+.godot/
+/android/
+*.tmp
+
+# Python (tools/)
+__pycache__/
+*.pyc
+
+# Builds/exports
+/build/
+/export/
+
+# Documentos de design (privados) — remova esta linha para publicar os .md
+*.md

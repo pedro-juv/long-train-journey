@@ -1,0 +1,21 @@
+[gd_scene load_steps=5 format=3 uid="uid://c3main0prototipo"]
+
+[ext_resource type="Script" path="res://game/game_controller.gd" id="1_game"]
+[ext_resource type="PackedScene" path="res://scenes/train_view.tscn" id="2_train"]
+[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="3_hud"]
+[ext_resource type="Script" path="res://scenes/audio_director.gd" id="4_audio"]
+
+[node name="Main" type="Node"]
+
+[node name="Game" type="Node" parent="."]
+script = ExtResource("1_game")
+
+[node name="TrainView" parent="." instance=ExtResource("2_train")]
+game_path = NodePath("../Game")
+
+[node name="HUD" parent="." instance=ExtResource("3_hud")]
+game_path = NodePath("../Game")
+
+[node name="AudioDirector" type="Node" parent="."]
+script = ExtResource("4_audio")
+train_view_path = NodePath("../TrainView")

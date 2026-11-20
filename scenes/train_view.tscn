@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://clcu30syeveg7"]
+
+[ext_resource type="Script" uid="uid://b8rsgldkrvkht" path="res://scenes/train_view.gd" id="1_tv"]
+
+[node name="TrainView" type="Node2D" unique_id=1047185918]
+script = ExtResource("1_tv")
