@@ -290,8 +290,8 @@ func _run() -> void:
 	else:
 		print("  --   janela real não testada aqui (headless): ver tests/float_check.tscn")
 	_check(not hud.get_node("Ticket").visible and not hud.get_node("Dashboard").visible and not hud.get_node("ShopPanel").visible, "HUD completa escondida")
-	var coal_label: Label = fm.get_node("FloatBar/CoalPlate").find_child("CoalLabel", true, false)
-	_check(fm.get_node("FloatBar").visible and coal_label.text == "%s carvão" % NumFormat.amount(g.state.stock.amount), "indicador de carvão mostra o estoque (%s)" % coal_label.text)
+	var coal_label: Label = fm.get_node("FloatBar").find_child("CoalLabel", true, false)
+	_check(fm.get_node("FloatBar").visible and coal_label.text == NumFormat.amount(g.state.stock.amount), "indicador de carvão mostra o estoque (%s)" % coal_label.text)
 	fm.get_node("FloatBar").find_child("ShopButton", true, false).pressed.emit()
 	await get_tree().process_frame
 	_check(fm.shop_open and hud.get_node("ShopPanel").visible, "botão + abre a loja compacta")
@@ -300,7 +300,16 @@ func _run() -> void:
 	hud._producer_rows["foguista"]["button"].pressed.emit()
 	await get_tree().process_frame
 	_check(g.state.producer("foguista").level == lvl + 1 and g.state.stock.amount < stock_before, "compra na loja compacta usa a mesma loja (Foguista nv %d)" % (lvl + 1))
-	_check(coal_label.text == "%s carvão" % NumFormat.amount(g.state.stock.amount), "indicador atualiza depois da compra")
+	_check(coal_label.text == NumFormat.amount(g.state.stock.amount), "indicador atualiza depois da compra")
+	var audio_node := _main.get_node("AudioDirector")
+	var music_was: bool = audio_node.music_enabled
+	var sfx_was: bool = audio_node.sfx_enabled
+	fm.get_node("FloatBar").find_child("MusicButton", true, false).pressed.emit()
+	fm.get_node("FloatBar").find_child("SfxButton", true, false).pressed.emit()
+	_check(audio_node.music_enabled == not music_was and audio_node.sfx_enabled == not sfx_was, "botões pequenos ligam/desligam música e efeitos")
+	fm.get_node("FloatBar").find_child("MusicButton", true, false).pressed.emit()
+	fm.get_node("FloatBar").find_child("SfxButton", true, false).pressed.emit()
+	_check(audio_node.music_enabled == music_was and audio_node.sfx_enabled == sfx_was, "e voltam ao estado anterior")
 	g.save_now()
 	var float_save: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
 	_check(int(float_save["producers"]["foguista"]) == lvl + 1, "compra feita na janelinha está no mesmo save")
@@ -314,10 +323,20 @@ func _run() -> void:
 	if has_window:
 		_check(not get_window().transparent_bg and not get_window().always_on_top and not get_window().borderless, "janela normal restaurada")
 	_check(g.state.producer("foguista").level == lvl + 1 and hud.get_node("%StockLabel").text == "%s carvão" % NumFormat.amount(g.state.stock.amount), "modo normal mostra a compra e o carvão atualizados")
+	# menu aberto -> trem flutuante -> volta -> ESC: a placa abre no lugar certo
+	var board: Control = _menu().get_node("%Board")
+	_menu().open()
+	await get_tree().create_timer(1.6, true).timeout   # a placa termina de balançar
+	var board_home: Vector2 = board.position
 	_menu().get_node("Root/Board/Margin/VBox/FloatButton").pressed.emit()
 	await get_tree().process_frame
 	_check(fm.active and not _menu().is_open and not get_tree().paused, "opção do menu liga o modo flutuante e despausa")
-	fm.exit()
+	await _press_esc()
+	await _press_esc()
+	await get_tree().create_timer(1.6, true).timeout
+	_check(not fm.active and _menu().is_open, "depois de voltar, ESC abre o menu")
+	_check(board.position.distance_to(board_home) < 1.0 and board.rotation == 0.0, "placa do menu no lugar certo (%s, esperado %s)" % [board.position, board_home])
+	_menu().close(true)
 
 	# Restaura o save original do jogador.
 	if had_save:

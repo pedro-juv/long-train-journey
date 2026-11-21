@@ -36,11 +36,16 @@ var _tween: Tween
 var _reset_armed: float = 0.0
 var _skin_id: String = SeasonThemes.DEFAULT
 var _board_home: Vector2 = Vector2.ZERO
+## Margens originais da placa (centralizada pelas âncoras). A animação mexe
+## na posição; ao abrir, a placa volta a estas margens e recentraliza mesmo
+## que a janela tenha mudado de tamanho (ex.: modo trem flutuante).
+var _board_offsets: Array = []
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_root.visible = false
+	_board_offsets = [_board.offset_left, _board.offset_top, _board.offset_right, _board.offset_bottom]
 	_root.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_music_switch.toggled.connect(_on_music_toggled)
 	_sfx_switch.toggled.connect(_on_sfx_toggled)
@@ -69,7 +74,7 @@ func _add_float_button() -> void:
 	b.add_theme_font_size_override("font_size", 14)
 	b.focus_mode = Control.FOCUS_NONE
 	b.pressed.connect(func():
-		close()
+		close(true)
 		float_mode.enter())
 	_reset_button.get_parent().add_child(b)
 	_reset_button.get_parent().move_child(b, _reset_button.get_index())
@@ -111,6 +116,7 @@ func open() -> void:
 	_reset_armed = 0.0
 	_reset_button.text = "Reiniciar partida (apaga o save)"
 	_root.visible = true
+	_reset_board_layout()
 	_board_home = _board.position
 	if _tween:
 		_tween.kill()
@@ -127,14 +133,19 @@ func open() -> void:
 	_back_button.grab_focus.call_deferred()
 
 
-## Fecha a placa e retoma o jogo de onde parou.
-func close() -> void:
+## Fecha a placa e retoma o jogo de onde parou. `instant`: sem animação
+## (usado quando a janela vai mudar de tamanho logo em seguida).
+func close(instant: bool = false) -> void:
 	if not is_open:
 		return
 	is_open = false
 	get_tree().paused = false
 	if _tween:
 		_tween.kill()
+	if instant:
+		_dim.modulate.a = 0.0
+		_finish_close()
+		return
 	_tween = create_tween().set_parallel(true)
 	_tween.tween_property(_dim, "modulate:a", 0.0, 0.2)
 	_tween.tween_property(_board, "position", _board_home + Vector2(0, -_board.size.y - 120.0), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
@@ -143,8 +154,17 @@ func close() -> void:
 
 func _finish_close() -> void:
 	_root.visible = false
-	_board.position = _board_home
 	_board.rotation = 0.0
+	_reset_board_layout()
+
+
+## Devolve a placa ao centro (margens originais das âncoras).
+func _reset_board_layout() -> void:
+	if _board_offsets.size() == 4:
+		_board.offset_left = _board_offsets[0]
+		_board.offset_top = _board_offsets[1]
+		_board.offset_right = _board_offsets[2]
+		_board.offset_bottom = _board_offsets[3]
 
 
 ## Lê as configurações atuais (áudio salvo e parada da partida).

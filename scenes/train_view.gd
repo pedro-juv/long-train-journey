@@ -1,5 +1,6 @@
+class_name TrainView
 extends Node2D
-## TrainView — cenário e locomotiva, desenhados por código em estilo cartoon.
+## TrainView — cenário e locomotiva, desenhados por código ("desenho sombrio").
 ##
 ## Só apresentação: lê a velocidade e os eventos do EventBus e anima.
 ## Nenhuma regra de jogo vive aqui; tudo pode ser trocado por arte definitiva.
@@ -176,7 +177,7 @@ const FLOAT_ZOOM := 0.5
 ## Ponto do mundo que fica na borda direita da janela (frente do trem + folga).
 const FLOAT_RIGHT_X := LOCO_X + 470.0
 ## Distância (px) do trilho até o pé da janela (espaço do indicador de carvão).
-const FLOAT_GROUND_MARGIN := 64.0
+const FLOAT_GROUND_MARGIN := 46.0
 var _normal_zoom: float = 0.58
 ## Deslocamento do mundo (unidades do mundo) que a câmera mostra no canto superior esquerdo.
 var _view_origin := Vector2.ZERO
@@ -903,6 +904,14 @@ func set_floating(on: bool) -> void:
 		_layers[layer_name].visible = not on
 	_static_dirty = true
 	_update_layers()
+
+
+## Zoom do modo flutuante (o trem acompanha o tamanho da janelinha).
+func set_float_zoom(z: float) -> void:
+	if not floating:
+		return
+	camera_zoom = clampf(z, 0.2, 1.4)
+	_static_dirty = true
 
 
 ## Repete `fn(origem_x)` em blocos de `tile` cobrindo a tela mais um bloco
