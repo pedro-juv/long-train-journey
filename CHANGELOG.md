@@ -7,6 +7,28 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.5.0] — 2026-11-21 · Trem flutuante (desktop)
+
+**Modo trem flutuante (só na versão desktop)**
+- Botão "FLUTUAR" (embaixo da engrenagem) ou "Trem flutuante" no menu de
+  opções: a janela do jogo vira uma janelinha (560 x 290) sem borda, sempre por
+  cima das outras, no canto inferior direito da tela
+- Fundo transparente de verdade (o Windows mostra o desktop por trás): ficam só
+  o trem, o trilho com uma faixa de chão, árvores, postes com lampiões, clima,
+  plataforma e placa das estações. Céu, montanhas, cidade e a escuridão somem
+- Bilhete com o carvão e botão "+": a janela cresce para cima e mostra a loja
+  (a mesma loja da HUD, com as mesmas compras e as duas abas)
+- Arrastar em qualquer parte move a janela; fora do trem e da barra o clique
+  atravessa para o que está atrás
+- Voltar à janela normal: botão, ESC ou duplo clique no trem (mesmo tamanho e
+  lugar de antes). Botão X fecha o jogo salvando
+- Mesma partida em memória e mesmo save: nada recarrega ao alternar
+- Mais leve: limitado a 30 quadros por segundo e camadas escondidas não são
+  redesenhadas
+
+**Não incluído:** o save do desktop e o do navegador continuam separados
+(cada um no seu armazenamento local; o projeto não tem conta nem nuvem)
+
 ## [0.4.0] — 2026-11-20 · Desenho sombrio e a escuridão
 
 **Arte (desenho sombrio, provisório)**

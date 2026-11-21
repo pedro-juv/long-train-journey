@@ -10,12 +10,14 @@ extends CanvasLayer
 ##   Música / Efeitos     -> AudioDirector (user://settings.cfg)
 ##   Parada automática    -> GameController/GameState (save da partida;
 ##                           mantida ao reiniciar a partida)
+##   Trem flutuante       -> FloatMode (só no desktop; não aparece na Web)
 ##   Reiniciar partida    -> pede confirmação (clique duas vezes)
 
 @export var game_path: NodePath = NodePath("../Game")
 @export var audio_path: NodePath = NodePath("../AudioDirector")
 @export var view_path: NodePath = NodePath("../TrainView")
 @export var hud_path: NodePath = NodePath("../HUD")
+@export var float_path: NodePath = NodePath("../FloatMode")
 
 ## Segundos para confirmar o reinício (segundo clique).
 const RESET_CONFIRM_SECONDS := 3.0
@@ -45,6 +47,7 @@ func _ready() -> void:
 	_stop_switch.toggled.connect(_on_stop_toggled)
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_back_button.pressed.connect(close)
+	_add_float_button()
 	EventBus.stop_at_stations_changed.connect(func(on: bool): _stop_switch.set_on_no_signal(on, is_open))
 	_board.draw.connect(_draw_board)
 	var view := get_node_or_null(view_path)
@@ -54,7 +57,28 @@ func _ready() -> void:
 	_sync_switches(false)
 
 
+## "Trem flutuante" (desktop): fecha o menu e vira a janelinha.
+func _add_float_button() -> void:
+	var float_mode := get_node_or_null(float_path)
+	if float_mode == null or not FloatMode.supported():
+		return
+	var b := Button.new()
+	b.name = "FloatButton"
+	b.text = "Trem flutuante (janelinha sobre o desktop)"
+	b.custom_minimum_size = Vector2(0, 40)
+	b.add_theme_font_size_override("font_size", 14)
+	b.focus_mode = Control.FOCUS_NONE
+	b.pressed.connect(func():
+		close()
+		float_mode.enter())
+	_reset_button.get_parent().add_child(b)
+	_reset_button.get_parent().move_child(b, _reset_button.get_index())
+
+
 func _input(event: InputEvent) -> void:
+	var float_mode := get_node_or_null(float_path)
+	if float_mode and float_mode.active:
+		return   # na janelinha, ESC volta à janela normal (FloatMode)
 	if event.is_action_pressed("toggle_options") and not event.is_echo():
 		toggle()
 		get_viewport().set_input_as_handled()

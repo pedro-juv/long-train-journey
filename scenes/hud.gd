@@ -16,6 +16,7 @@ extends CanvasLayer
 @export var game_path: NodePath
 @export var view_path: NodePath = NodePath("../TrainView")
 @export var options_path: NodePath = NodePath("../OptionsMenu")
+@export var float_path: NodePath = NodePath("../FloatMode")
 
 ## Frequência de atualização dos textos e botões da loja (segundos).
 const SHOP_REFRESH_INTERVAL := 0.1
@@ -71,6 +72,11 @@ var _shop_signature: String = ""
 var _version_label: Label
 var _version_text: String = ""
 var _fps_timer: float = 0.0
+## Modo trem flutuante: a HUD esconde tudo e a loja vira o painel compacto.
+var floating: bool = false
+## Layout normal da loja (âncoras e margens), para voltar do modo flutuante.
+var _shop_layout: Array = []
+var _float_button: Button
 ## Pele atual (tema da região).
 var _skin_id: String = SeasonThemes.DEFAULT
 var _font: Font
@@ -99,6 +105,7 @@ func _ready() -> void:
 	_offline_ok.pressed.connect(func(): _offline_popup.visible = false)
 	_options_button.pressed.connect(_on_options_pressed)
 	_options_button.draw.connect(_draw_options_icon)
+	_add_float_button()
 	_click_button.tooltip_text = "Cada clique gera carvão e aumenta a pressão da caldeira (velocidade extra que baixa sozinha)."
 	_speed_gauge.caption = "m/s"
 	_speed_gauge.tooltip_text = "A velocidade vem da produção e dos reforços das peças; a caldeira atiçada dá um extra."
@@ -180,9 +187,10 @@ func _apply_skin(theme_id: String) -> void:
 	var sk := HudSkin.skin(_skin_id)
 	var accent: Color = sk["accent"]
 	var theme := HudSkin.make_theme(_skin_id)
-	for root_control in [$Ticket, $RoutePlate, $StateArea, $Dashboard, $ShopPanel, $Toast, _options_button, _offline_popup, _banner]:
-		root_control.theme = theme
-		root_control.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	for root_control in [$Ticket, $RoutePlate, $StateArea, $Dashboard, $ShopPanel, $Toast, _options_button, _offline_popup, _banner, _float_button]:
+		if root_control:
+			root_control.theme = theme
+			root_control.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	var wood := HudSkin.panel_style(_skin_id)
 	for panel in [$RoutePlate, $Dashboard, $ShopPanel]:
 		panel.add_theme_stylebox_override("panel", wood)
@@ -248,6 +256,88 @@ func _draw_options_icon() -> void:
 	HudSkin.ink_gear(b, c, 17, 12, 9, 0.2, C_CREAM, 2.0)
 	HudSkin.ink_circle(b, c, 5.0, HudSkin.skin(_skin_id)["accent"], 2.0)
 	b.draw_string(_font, Vector2(0, b.size.y + 13), "ESC", HORIZONTAL_ALIGNMENT_CENTER, b.size.x, 11, C_CREAM)
+
+
+## Botão do modo trem flutuante, embaixo da engrenagem (só no desktop).
+func _add_float_button() -> void:
+	var float_mode := get_node_or_null(float_path)
+	if float_mode == null or not FloatMode.supported():
+		return
+	var b := Button.new()
+	b.name = "FloatButton"
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = "Trem flutuante: o trem vira uma janelinha transparente sobre o desktop"
+	b.anchor_left = 1.0
+	b.anchor_right = 1.0
+	b.offset_left = -420.0   # embaixo da engrenagem (ESC), fora da placa da rota
+	b.offset_top = 100.0
+	b.offset_right = -364.0
+	b.offset_bottom = 148.0
+	b.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	b.pressed.connect(float_mode.enter)
+	b.draw.connect(_draw_float_icon.bind(b))
+	add_child(b)
+	move_child(b, _options_button.get_index() + 1)
+	_float_button = b
+
+
+## Ícone: janelinha com um trenzinho, e o texto embaixo.
+func _draw_float_icon(b: Button) -> void:
+	var c := b.size / 2.0
+	var win := Rect2(c - Vector2(16, 12), Vector2(32, 24))
+	HudSkin.rect(b, win.grow(2), HudSkin.INK)
+	HudSkin.rect(b, win, Color(C_CREAM, 0.25))
+	HudSkin.rect(b, Rect2(win.position, Vector2(win.size.x, 5)), C_CREAM)
+	HudSkin.rect(b, Rect2(c + Vector2(-9, 0), Vector2(14, 7)), C_CREAM)
+	HudSkin.rect(b, Rect2(c + Vector2(1, -5), Vector2(4, 5)), C_CREAM)
+	HudSkin.circle(b, c + Vector2(-5, 8), 2.5, C_CREAM)
+	HudSkin.circle(b, c + Vector2(3, 8), 2.5, C_CREAM)
+	b.draw_string(_font, Vector2(-10, b.size.y + 13), "FLUTUAR", HORIZONTAL_ALIGNMENT_CENTER, b.size.x + 20, 11, C_CREAM)
+
+
+## Modo trem flutuante: só a loja fica (escondida até o botão "+").
+func set_floating(on: bool) -> void:
+	if on == floating:
+		return
+	floating = on
+	for c in [$Ticket, $RoutePlate, $StateArea, $Dashboard, _options_button, _float_button, _version_label]:
+		if c:
+			c.visible = not on
+	var shop: Control = $ShopPanel
+	if on:
+		_toast.visible = false
+		_banner.visible = false
+		_offline_popup.visible = false
+		_shop_layout = [shop.anchor_left, shop.anchor_top, shop.anchor_right, shop.anchor_bottom,
+			shop.offset_left, shop.offset_top, shop.offset_right, shop.offset_bottom]
+		shop.visible = false
+	else:
+		shop.anchor_left = _shop_layout[0]
+		shop.anchor_top = _shop_layout[1]
+		shop.anchor_right = _shop_layout[2]
+		shop.anchor_bottom = _shop_layout[3]
+		shop.offset_left = _shop_layout[4]
+		shop.offset_top = _shop_layout[5]
+		shop.offset_right = _shop_layout[6]
+		shop.offset_bottom = _shop_layout[7]
+		shop.visible = true
+
+
+## Loja compacta do modo flutuante: a MESMA loja (mesmas linhas, mesmas
+## compras), presa no topo da janela com a altura dada.
+func show_float_shop(on: bool, height: float) -> void:
+	var shop: Control = $ShopPanel
+	shop.visible = on
+	if on:
+		shop.anchor_left = 0.0
+		shop.anchor_right = 1.0
+		shop.anchor_top = 0.0
+		shop.anchor_bottom = 0.0
+		shop.offset_left = 8.0
+		shop.offset_right = -16.0
+		shop.offset_top = 16.0   # folga para a engrenagem desenhada no canto
+		shop.offset_bottom = height
+		_refresh_shop()
 
 
 func _on_options_pressed() -> void:
@@ -389,7 +479,7 @@ func _on_offline_summary(summary: Dictionary) -> void:
 	if summary.get("waiting_at_station", false) and not names.is_empty():
 		lines.append("O trem chegou à %s e esperou você para seguir viagem." % _station_title(names[-1]))
 	_offline_text.text = "\n".join(lines)
-	_offline_popup.visible = true
+	_offline_popup.visible = not floating
 	_pop_in(_offline_popup)
 
 
@@ -555,6 +645,8 @@ func show_message(text: String) -> void:
 
 
 func _show_message(text: String) -> void:
+	if floating:   # a janelinha não tem espaço para avisos
+		return
 	_message_label.text = text
 	_message_timer = 5.0
 	if not _toast.visible:
@@ -631,6 +723,8 @@ func _pop_in(control: Control) -> void:
 
 
 func _show_banner(text: String) -> void:
+	if floating:   # a placa da estação no cenário já mostra a chegada
+		return
 	_banner_text.text = text
 	_banner.visible = true
 	_banner.modulate.a = 0.0
