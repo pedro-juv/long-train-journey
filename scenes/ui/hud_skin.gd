@@ -27,10 +27,10 @@ const METAL := Color(0.55, 0.58, 0.62)
 ##   stamp   texto do carimbo no bilhete
 const SKINS := {
 	"inicio": {"accent": Color(0.90, 0.68, 0.38), "panel": Color(0.11, 0.12, 0.15), "deco": "gears", "stamp": "PARTIDA"},
-	"primavera": {"accent": Color(0.62, 0.84, 0.56), "panel": Color(0.12, 0.16, 0.16), "deco": "flowers", "stamp": "PRIMAVERA"},
-	"verao": {"accent": Color(0.95, 0.78, 0.40), "panel": Color(0.15, 0.15, 0.14), "deco": "sun", "stamp": "VERÃO"},
-	"outono": {"accent": Color(0.92, 0.54, 0.30), "panel": Color(0.15, 0.11, 0.11), "deco": "leaves", "stamp": "OUTONO"},
-	"inverno": {"accent": Color(0.56, 0.88, 0.90), "panel": Color(0.07, 0.12, 0.15), "deco": "frost", "stamp": "INVERNO"},
+	"tomada": {"accent": Color(0.62, 0.80, 0.46), "panel": Color(0.10, 0.14, 0.12), "deco": "vines", "stamp": "TOMADA"},
+	"deserto": {"accent": Color(0.94, 0.56, 0.24), "panel": Color(0.16, 0.12, 0.10), "deco": "sun", "stamp": "DESERTO"},
+	"ruinas": {"accent": Color(0.90, 0.89, 0.82), "panel": Color(0.14, 0.14, 0.14), "deco": "shards", "stamp": "RUÍNAS"},
+	"inverno": {"accent": Color(0.56, 0.88, 0.90), "panel": Color(0.07, 0.12, 0.15), "deco": "frost", "stamp": "ERMO"},
 }
 
 
@@ -312,22 +312,33 @@ static func draw_season_ornament(ci: CanvasItem, size: Vector2, theme_id: String
 			ink_gear(ci, Vector2(size.x - 6, 6), 17, 12, 9, 0.3, BRASS, 2.0)
 			ink_circle(ci, Vector2(size.x - 6, 6), 5.0, BRASS_DARK, 1.5)
 			ink_gear(ci, Vector2(size.x - 28, -2), 10, 7, 8, 0.1, METAL, 2.0)
-		"flowers":
-			for f in [[Vector2(4, 6), 1.0, Color(1.0, 0.62, 0.78)], [Vector2(24, -2), 0.75, Color(1.0, 0.95, 0.98)],
-					[Vector2(size.x - 8, size.y - 6), 1.0, Color(1.0, 0.85, 0.30)], [Vector2(size.x - 30, size.y + 1), 0.7, Color(1.0, 0.62, 0.78)]]:
-				_flower(ci, f[0], f[1], f[2], accent)
+		"vines":
+			# trepadeira pendurada na borda de cima, com folhas
+			var x := 4.0
+			var k := 0
+			while x < size.x * 0.4:
+				var hang := 8.0 + float((k * 11) % 19)
+				line(ci, Vector2(x, 0), Vector2(x + 3.0, hang), accent.darkened(0.35), 2.0)
+				_leaf(ci, Vector2(x + 3.0, hang), 1.2 + k * 0.7, accent if k % 2 == 0 else accent.darkened(0.2))
+				x += 14.0
+				k += 1
+			_leaf(ci, Vector2(size.x - 10, size.y - 4), 2.4, accent)
+			_leaf(ci, Vector2(size.x - 26, size.y), 3.1, accent.darkened(0.2))
 		"sun":
 			var c := Vector2(size.x - 10, 8)
 			for i in 10:
 				var a := i * TAU / 10.0
 				var d := Vector2(cos(a), sin(a))
 				ink_poly(ci, PackedVector2Array([c + d * 14.0 + d.orthogonal() * 4.0, c + d * 25.0, c + d * 14.0 - d.orthogonal() * 4.0]), accent, 1.5)
-			ink_circle(ci, c, 13.0, Color(1.0, 0.88, 0.35), 2.0)
-			arc(ci, c + Vector2(0, 2), 6.0, 0.4, PI - 0.4, 6, INK, 2.0)
-		"leaves":
-			_leaf(ci, Vector2(8, 4), 0.6, Color(0.97, 0.52, 0.18))
-			_leaf(ci, Vector2(26, -2), -0.4, Color(0.82, 0.25, 0.12))
-			_leaf(ci, Vector2(size.x - 10, size.y - 4), 2.4, Color(0.98, 0.76, 0.22))
+			ink_circle(ci, c, 13.0, Color(1.0, 0.80, 0.40), 2.0)   # sol do deserto, sem rosto
+		"shards":
+			# pedaços de concreto quebrado nos cantos
+			for sh in [[Vector2(size.x - 14, 4), 1.0, 0.3], [Vector2(size.x - 34, -2), 0.7, -0.5], [Vector2(10, size.y - 4), 0.8, 1.1]]:
+				var c: Vector2 = sh[0]
+				var sc: float = sh[1]
+				var r := Vector2(cos(sh[2]), sin(sh[2]))
+				var o := r.orthogonal()
+				ink_poly(ci, PackedVector2Array([c - r * 12.0 * sc, c + o * 7.0 * sc, c + r * 10.0 * sc - o * 2.0 * sc, c - o * 8.0 * sc]), accent, 1.5)
 		"frost":
 			# neve acumulada na borda de cima e pingentes de gelo
 			var x := 6.0
@@ -350,14 +361,6 @@ static func draw_season_ornament(ci: CanvasItem, size: Vector2, theme_id: String
 				ink_poly(ci, PackedVector2Array([Vector2(ix - 4, 5), Vector2(ix + 4, 5), Vector2(ix, 5 + length)]), Color(0.82, 0.93, 1.0), 1.2)
 
 
-static func _flower(ci: CanvasItem, c: Vector2, sc: float, petal: Color, leaf: Color) -> void:
-	ink_poly(ci, PackedVector2Array([c + Vector2(4, 4) * sc, c + Vector2(18, 10) * sc, c + Vector2(8, 14) * sc]), leaf, 1.5)
-	for i in 5:
-		var a := i * TAU / 5.0 - PI / 2.0
-		ink_circle(ci, c + Vector2(cos(a), sin(a)) * 7.0 * sc, 5.0 * sc, petal, 1.5)
-	ink_circle(ci, c, 4.0 * sc, Color(1.0, 0.82, 0.25), 1.5)
-
-
 static func _leaf(ci: CanvasItem, c: Vector2, rot: float, col: Color) -> void:
 	var u := Vector2(cos(rot), sin(rot)) * 13.0
 	var v := u.orthogonal() * 0.5
@@ -377,19 +380,20 @@ static func draw_stamp(ci: CanvasItem, c: Vector2, theme_id: String, font: Font)
 		"gears":
 			poly(ci, gear_points(c + Vector2(0, -3), 11, 8, 8, 0.0), col)
 			circle(ci, c + Vector2(0, -3), 3.5, CREAM)
-		"flowers":
-			for i in 5:
-				var a := i * TAU / 5.0 - PI / 2.0
-				circle(ci, c + Vector2(0, -3) + Vector2(cos(a), sin(a)) * 6.0, 4.0, col)
-			circle(ci, c + Vector2(0, -3), 3.0, CREAM)
+		"vines":
+			line(ci, c + Vector2(0, 8), c + Vector2(0, -12), col, 2.0)
+			for i in 3:
+				var y := -9.0 + i * 6.0
+				var sd := -1.0 if i % 2 == 0 else 1.0
+				poly(ci, PackedVector2Array([c + Vector2(0, y), c + Vector2(sd * 9.0, y - 4.0), c + Vector2(sd * 5.0, y + 2.0)]), col)
 		"sun":
 			circle(ci, c + Vector2(0, -3), 7.0, col)
 			for i in 8:
 				var a := i * TAU / 8.0
 				line(ci, c + Vector2(0, -3) + Vector2(cos(a), sin(a)) * 9.0, c + Vector2(0, -3) + Vector2(cos(a), sin(a)) * 13.0, col, 2.0)
-		"leaves":
-			var u := Vector2(0, -11)
-			poly(ci, PackedVector2Array([c + Vector2(0, -3) - u, c + Vector2(6, -3), c + Vector2(0, -3) + u, c + Vector2(-6, -3)]), col)
+		"shards":
+			# silhueta de prédio quebrado
+			poly(ci, PackedVector2Array([c + Vector2(-8, 8), c + Vector2(8, 8), c + Vector2(8, -6), c + Vector2(3, -12), c + Vector2(0, -6), c + Vector2(-8, -10)]), col)
 		"frost":
 			for i in 3:
 				var a := i * PI / 3.0

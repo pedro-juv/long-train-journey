@@ -7,6 +7,24 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.6.0] — 2026-11-21 · Regiões pós-apocalípticas
+
+**As estações do ano viraram regiões devastadas** (referências: The Last of
+Us, Mad Max, NieR: Automata). Progressão, trechos e recompensas não mudaram.
+- Estação Inicial: pátio industrial enferrujado, árvores secas, cinzas e brasas
+- Cidade Tomada (antiga Primavera): ruínas cobertas de mato e trepadeiras,
+  arranha-céus vazios, carros abandonados, esporos boiando no ar
+- Deserto de Ferrugem (antigo Verão): céu laranja, dunas, quase nenhum prédio
+  de pé, sucata de carros, ônibus e caminhões, árvores mortas, poeira soprando
+- Ruínas Brancas (antigo Outono): arranha-céus quebrados sob luz clara e
+  lavada, mato no concreto, partículas de luz subindo
+- Ermo Gelado (antigo Inverno): mesma noite de neve, agora com destroços
+- Veículos abandonados perto do trilho (também no trem flutuante)
+- Mato subindo pelos postes na Cidade Tomada e nas Ruínas Brancas
+- HUD: cada região com sua cor e seus ornamentos (trepadeiras, sol do deserto,
+  estilhaços de concreto); nomes longos quebram em duas linhas na placa da rota
+- Música: provisoriamente, as mesmas variações da valsa das estações antigas
+
 ## [0.5.0] — 2026-11-21 · Trem flutuante (desktop)
 
 **Modo trem flutuante (só na versão desktop)**

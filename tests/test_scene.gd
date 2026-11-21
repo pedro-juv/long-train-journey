@@ -87,25 +87,25 @@ func _run() -> void:
 	_check(hud.get_node("%OfflinePopup").visible, "resumo offline aparece")
 	var text: String = hud.get_node("%OfflineText").text
 	_check(text.contains("Tempo fora: 2 h"), "resumo mostra o tempo fora")
-	_check(text.contains("Estações alcançadas: Primavera"), "resumo lista a estação alcançada offline")
-	_check(hud.get_node("%MessageLabel").text.contains("Primavera"), "chegada da estação alcançada offline aparece ao abrir (caminho B)")
+	_check(text.contains("Estações alcançadas: Cidade Tomada"), "resumo lista a estação alcançada offline")
+	_check(hud.get_node("%MessageLabel").text.contains("Cidade Tomada"), "chegada da estação alcançada offline aparece ao abrir (caminho B)")
 	_check(text.contains("esperou você"), "resumo avisa que o trem esperou na estação")
-	_check(g.state.train.distance_m >= 10500.0 and g.state.train.distance_m < 10520.0, "offline parou na Primavera e o trem segue ao abrir (%.0f m)" % g.state.train.distance_m)
+	_check(g.state.train.distance_m >= 10500.0 and g.state.train.distance_m < 10520.0, "offline parou na Cidade Tomada e o trem segue ao abrir (%.0f m)" % g.state.train.distance_m)
 	var view := _main.get_node("TrainView")
 	var audio := _main.get_node("AudioDirector")
-	_check(view._theme_id == "primavera", "cenário no tema da Primavera (%s)" % view._theme_id)
-	_check(audio.current_music_theme() == "primavera", "música na variação da Primavera (%s)" % audio.current_music_theme())
-	_check(g.state.train.state == TrainMovement.State.AT_STATION and g.state.station_stop_left > 0.0, "ao abrir, o trem está parado na plataforma da Primavera")
-	_check(hud.get_node("%StateLabel").visible and hud.get_node("%StateLabel").text.contains("Parado em Primavera"), "estado mostra a parada na estação")
+	_check(view._theme_id == "tomada", "cenário no tema da Cidade Tomada (%s)" % view._theme_id)
+	_check(audio.current_music_theme() == "tomada", "música na variação da Cidade Tomada (%s)" % audio.current_music_theme())
+	_check(g.state.train.state == TrainMovement.State.AT_STATION and g.state.station_stop_left > 0.0, "ao abrir, o trem está parado na plataforma da Cidade Tomada")
+	_check(hud.get_node("%StateLabel").visible and hud.get_node("%StateLabel").text.contains("Parado em Cidade Tomada"), "estado mostra a parada na estação")
 	g.set_stop_at_stations(false)
 	_check(not _menu().get_node("%StopSwitch").on, "chave Parada automática do menu acompanha a preferência")
 	g.state.station_stop_left = 0.0
 	g.state.train.distance_m = g.state.route.target_distance(2) - 1.0
 	g.state.train.current_speed = g.state.cruise_speed()
 	await get_tree().create_timer(0.3).timeout
-	_check(g.state.train.state != TrainMovement.State.AT_STATION, "com o botão desligado o trem passa direto pelo Verão")
-	_check(view._theme_id == "verao" and view._prev_theme_id == "primavera" and view._blend < 1.0, "chegar ao Verão inicia a transição de tema")
-	_check(audio.current_music_theme() == "verao", "música troca para a variação do Verão")
+	_check(g.state.train.state != TrainMovement.State.AT_STATION, "com o botão desligado o trem passa direto pelo Deserto de Ferrugem")
+	_check(view._theme_id == "deserto" and view._prev_theme_id == "tomada" and view._blend < 1.0, "chegar ao Deserto de Ferrugem inicia a transição de tema")
+	_check(audio.current_music_theme() == "deserto", "música troca para a variação do Deserto de Ferrugem")
 	hud.get_node("%OfflineOk").pressed.emit()
 	_check(not hud.get_node("%OfflinePopup").visible, "botão fecha o resumo")
 
@@ -150,8 +150,8 @@ func _run() -> void:
 	var crow: Dictionary = hud._component_rows
 	_check(crow.size() == 6, "seis peças listadas")
 	_check(crow["rodas"]["title"].text.contains("Rodas de ferro fundido"), "rodas de ferro fundido (%s)" % crow["rodas"]["title"].text)
-	_check(crow["chamine"]["title"].text.contains("bloqueado"), "Chaminé bloqueada até o Outono")
-	_check(not crow["rodas"]["auto"].visible, "manutenção automática escondida antes do Outono")
+	_check(crow["chamine"]["title"].text.contains("bloqueado"), "Chaminé bloqueada até o Ruínas Brancas")
+	_check(not crow["rodas"]["auto"].visible, "manutenção automática escondida antes do Ruínas Brancas")
 	g.state.component("rodas").integrity = 0.2
 	await get_tree().process_frame
 	await get_tree().create_timer(0.15).timeout
@@ -184,13 +184,13 @@ func _run() -> void:
 	text = _hud().get_node("%OfflineText").text
 	_check(text.contains("contamos até 24 h"), "resumo avisa que contou só 24 h (%s)" % text.get_slice("\n", 0))
 
-	# --- 2b. Outono: manutenção automática e resumo de paradas ---------------
+	# --- 2b. Ruínas Brancas: manutenção automática e resumo de paradas ---------------
 	_write_save({"save_version": 4, "saved_at": now - 3600.0, "stock": 1e9, "tank": 100.0,
 		"producers": {"foguista": 30, "carvoaria": 20}, "upgrades_purchased": [], "distance_m": 60000.0,
 		"components": {}})
 	await _open_game()
-	print("Outono: manutenção automática")
-	_check(_main.get_node("TrainView")._theme_id == "inverno", "1 h fora a partir do Outono: chega ao Inverno (tema %s)" % _main.get_node("TrainView")._theme_id)
+	print("Ruínas Brancas: manutenção automática")
+	_check(_main.get_node("TrainView")._theme_id == "inverno", "1 h fora a partir do Ruínas Brancas: chega ao Ermo Gelado (tema %s)" % _main.get_node("TrainView")._theme_id)
 	text = _hud().get_node("%OfflineText").text
 	_check(text.contains("paradas para manutenção"), "resumo offline mostra as paradas (%s)" % text.get_slice("\n", 3))
 	_hud().get_node("%TrainTab").pressed.emit()

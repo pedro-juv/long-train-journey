@@ -634,7 +634,7 @@ func _effect_text(entry: Dictionary) -> String:
 	return ""
 
 
-## "Primavera" -> "Estação Primavera"; "Estação Inicial" continua igual.
+## "Cidade Tomada" -> "Estação Cidade Tomada"; "Estação Inicial" continua igual.
 func _station_title(station_name: String) -> String:
 	return station_name if station_name.begins_with("Estação") else "Estação %s" % station_name
 

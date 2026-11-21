@@ -64,7 +64,15 @@ func _draw() -> void:
 		var label := station_names[i]
 		var w := 90.0
 		var col := HudSkin.CREAM if done or i == reached else Color(HudSkin.CREAM, 0.6)
-		draw_string(_font, Vector2(p.x - w / 2.0, y + 26.0), label, HORIZONTAL_ALIGNMENT_CENTER, w, 11, col)
+		if _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x <= w - 4.0:
+			draw_string(_font, Vector2(p.x - w / 2.0, y + 26.0), label, HORIZONTAL_ALIGNMENT_CENTER, w, 11, col)
+		else:   # nome comprido ("Deserto de Ferrugem"): quebra em duas linhas
+			var words := label.split(" ")
+			var half := ceili(words.size() / 2.0)
+			var l1 := " ".join(words.slice(0, half))
+			var l2 := " ".join(words.slice(half))
+			draw_string(_font, Vector2(p.x - w / 2.0, y + 22.0), l1, HORIZONTAL_ALIGNMENT_CENTER, w, 10, col)
+			draw_string(_font, Vector2(p.x - w / 2.0, y + 33.0), l2, HORIZONTAL_ALIGNMENT_CENTER, w, 10, col)
 	# trenzinho
 	var tx := _x_of(pos)
 	var body := Rect2(tx - 12, y - 14, 20, 10)
