@@ -264,6 +264,80 @@ func _run() -> void:
 	_check(not get_tree().paused and not _menu().is_open, "reiniciar fecha o menu e despausa")
 	_check(_hud().get_node("%MessageLabel").text.contains("reiniciada"), "aviso de partida reiniciada")
 
+	# --- 6. Modo trem flutuante (desktop) --------------------------------------
+	print("Modo trem flutuante")
+	g = _game()
+	hud = _hud()
+	view = _main.get_node("TrainView")
+	var fm: FloatMode = _main.get_node("FloatMode")
+	_check(FloatMode.supported(), "modo flutuante disponível no desktop")
+	_check(hud.get_node_or_null("FloatButton") != null, "botão FLUTUAR na HUD")
+	_check(_menu().get_node_or_null("Root/Board/Margin/VBox/FloatButton") != null, "opção Trem flutuante no menu")
+	g.state.stock.add(5000.0)
+	var state_before: GameState = g.state
+	var dist_before: float = g.state.train.distance_m
+	hud.get_node("FloatButton").pressed.emit()
+	for i in 20:
+		await get_tree().process_frame
+	_check(fm.active and view.floating, "botão FLUTUAR liga o modo flutuante")
+	_check(g.state == state_before, "mesma partida em memória (nada recarregado)")
+	_check(g.state.train.distance_m > dist_before, "o trem continua andando na janelinha")
+	_check(not view._layers["SkyGradient"].visible and not view._layers["Mountains"].visible and not view._layers["Darkness"].visible, "céu, montanhas e escuridão somem (desktop por trás)")
+	_check(view._layers["Trees"].visible and view._layers["Poles"].visible and view._layers["LocoBody"].visible and view._layers["Rail"].visible, "trem, trilho, árvores e postes ficam")
+	var has_window := DisplayServer.get_name() != "headless"   # headless ignora a janela
+	if has_window:
+		_check(get_window().transparent_bg and get_window().borderless and get_window().always_on_top, "janela sem borda, fundo transparente e sempre no topo")
+	else:
+		print("  --   janela real não testada aqui (headless): ver tests/float_check.tscn")
+	_check(not hud.get_node("Ticket").visible and not hud.get_node("Dashboard").visible and not hud.get_node("ShopPanel").visible, "HUD completa escondida")
+	var coal_label: Label = fm.get_node("FloatBar").find_child("CoalLabel", true, false)
+	_check(fm.get_node("FloatBar").visible and coal_label.text == NumFormat.amount(g.state.stock.amount), "indicador de carvão mostra o estoque (%s)" % coal_label.text)
+	fm.get_node("FloatBar").find_child("ShopButton", true, false).pressed.emit()
+	await get_tree().process_frame
+	_check(fm.shop_open and hud.get_node("ShopPanel").visible, "botão + abre a loja compacta")
+	var lvl: int = g.state.producer("foguista").level
+	var stock_before: float = g.state.stock.amount
+	hud._producer_rows["foguista"]["button"].pressed.emit()
+	await get_tree().process_frame
+	_check(g.state.producer("foguista").level == lvl + 1 and g.state.stock.amount < stock_before, "compra na loja compacta usa a mesma loja (Foguista nv %d)" % (lvl + 1))
+	_check(coal_label.text == NumFormat.amount(g.state.stock.amount), "indicador atualiza depois da compra")
+	var audio_node := _main.get_node("AudioDirector")
+	var music_was: bool = audio_node.music_enabled
+	var sfx_was: bool = audio_node.sfx_enabled
+	fm.get_node("FloatBar").find_child("MusicButton", true, false).pressed.emit()
+	fm.get_node("FloatBar").find_child("SfxButton", true, false).pressed.emit()
+	_check(audio_node.music_enabled == not music_was and audio_node.sfx_enabled == not sfx_was, "botões pequenos ligam/desligam música e efeitos")
+	fm.get_node("FloatBar").find_child("MusicButton", true, false).pressed.emit()
+	fm.get_node("FloatBar").find_child("SfxButton", true, false).pressed.emit()
+	_check(audio_node.music_enabled == music_was and audio_node.sfx_enabled == sfx_was, "e voltam ao estado anterior")
+	g.save_now()
+	var float_save: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
+	_check(int(float_save["producers"]["foguista"]) == lvl + 1, "compra feita na janelinha está no mesmo save")
+	await _press_esc()
+	_check(fm.active and not fm.shop_open and not hud.get_node("ShopPanel").visible, "ESC fecha primeiro a loja")
+	await _press_esc()
+	for i in 4:
+		await get_tree().process_frame
+	_check(not fm.active and not view.floating and not _menu().is_open and not get_tree().paused, "ESC volta à janela normal (sem abrir o menu)")
+	_check(hud.get_node("Ticket").visible and hud.get_node("ShopPanel").visible and view._layers["SkyGradient"].visible, "HUD e cenário completos de volta")
+	if has_window:
+		_check(not get_window().transparent_bg and not get_window().always_on_top and not get_window().borderless, "janela normal restaurada")
+	_check(g.state.producer("foguista").level == lvl + 1 and hud.get_node("%StockLabel").text == "%s carvão" % NumFormat.amount(g.state.stock.amount), "modo normal mostra a compra e o carvão atualizados")
+	# menu aberto -> trem flutuante -> volta -> ESC: a placa abre no lugar certo
+	var board: Control = _menu().get_node("%Board")
+	_menu().open()
+	await get_tree().create_timer(1.6, true).timeout   # a placa termina de balançar
+	var board_home: Vector2 = board.position
+	_menu().get_node("Root/Board/Margin/VBox/FloatButton").pressed.emit()
+	await get_tree().process_frame
+	_check(fm.active and not _menu().is_open and not get_tree().paused, "opção do menu liga o modo flutuante e despausa")
+	await _press_esc()
+	await _press_esc()
+	await get_tree().create_timer(1.6, true).timeout
+	_check(not fm.active and _menu().is_open, "depois de voltar, ESC abre o menu")
+	_check(board.position.distance_to(board_home) < 1.0 and board.rotation == 0.0, "placa do menu no lugar certo (%s, esperado %s)" % [board.position, board_home])
+	_menu().close(true)
+
 	# Restaura o save original do jogador.
 	if had_save:
 		DirAccess.copy_absolute(ProjectSettings.globalize_path(BACKUP_PATH), ProjectSettings.globalize_path(SAVE_PATH))

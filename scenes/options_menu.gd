@@ -10,12 +10,14 @@ extends CanvasLayer
 ##   Música / Efeitos     -> AudioDirector (user://settings.cfg)
 ##   Parada automática    -> GameController/GameState (save da partida;
 ##                           mantida ao reiniciar a partida)
+##   Trem flutuante       -> FloatMode (só no desktop; não aparece na Web)
 ##   Reiniciar partida    -> pede confirmação (clique duas vezes)
 
 @export var game_path: NodePath = NodePath("../Game")
 @export var audio_path: NodePath = NodePath("../AudioDirector")
 @export var view_path: NodePath = NodePath("../TrainView")
 @export var hud_path: NodePath = NodePath("../HUD")
+@export var float_path: NodePath = NodePath("../FloatMode")
 
 ## Segundos para confirmar o reinício (segundo clique).
 const RESET_CONFIRM_SECONDS := 3.0
@@ -34,17 +36,23 @@ var _tween: Tween
 var _reset_armed: float = 0.0
 var _skin_id: String = SeasonThemes.DEFAULT
 var _board_home: Vector2 = Vector2.ZERO
+## Margens originais da placa (centralizada pelas âncoras). A animação mexe
+## na posição; ao abrir, a placa volta a estas margens e recentraliza mesmo
+## que a janela tenha mudado de tamanho (ex.: modo trem flutuante).
+var _board_offsets: Array = []
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_root.visible = false
+	_board_offsets = [_board.offset_left, _board.offset_top, _board.offset_right, _board.offset_bottom]
 	_root.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_music_switch.toggled.connect(_on_music_toggled)
 	_sfx_switch.toggled.connect(_on_sfx_toggled)
 	_stop_switch.toggled.connect(_on_stop_toggled)
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_back_button.pressed.connect(close)
+	_add_float_button()
 	EventBus.stop_at_stations_changed.connect(func(on: bool): _stop_switch.set_on_no_signal(on, is_open))
 	_board.draw.connect(_draw_board)
 	var view := get_node_or_null(view_path)
@@ -54,7 +62,28 @@ func _ready() -> void:
 	_sync_switches(false)
 
 
+## "Trem flutuante" (desktop): fecha o menu e vira a janelinha.
+func _add_float_button() -> void:
+	var float_mode := get_node_or_null(float_path)
+	if float_mode == null or not FloatMode.supported():
+		return
+	var b := Button.new()
+	b.name = "FloatButton"
+	b.text = "Trem flutuante (janelinha sobre o desktop)"
+	b.custom_minimum_size = Vector2(0, 40)
+	b.add_theme_font_size_override("font_size", 14)
+	b.focus_mode = Control.FOCUS_NONE
+	b.pressed.connect(func():
+		close(true)
+		float_mode.enter())
+	_reset_button.get_parent().add_child(b)
+	_reset_button.get_parent().move_child(b, _reset_button.get_index())
+
+
 func _input(event: InputEvent) -> void:
+	var float_mode := get_node_or_null(float_path)
+	if float_mode and float_mode.active:
+		return   # na janelinha, ESC volta à janela normal (FloatMode)
 	if event.is_action_pressed("toggle_options") and not event.is_echo():
 		toggle()
 		get_viewport().set_input_as_handled()
@@ -87,6 +116,7 @@ func open() -> void:
 	_reset_armed = 0.0
 	_reset_button.text = "Reiniciar partida (apaga o save)"
 	_root.visible = true
+	_reset_board_layout()
 	_board_home = _board.position
 	if _tween:
 		_tween.kill()
@@ -103,14 +133,19 @@ func open() -> void:
 	_back_button.grab_focus.call_deferred()
 
 
-## Fecha a placa e retoma o jogo de onde parou.
-func close() -> void:
+## Fecha a placa e retoma o jogo de onde parou. `instant`: sem animação
+## (usado quando a janela vai mudar de tamanho logo em seguida).
+func close(instant: bool = false) -> void:
 	if not is_open:
 		return
 	is_open = false
 	get_tree().paused = false
 	if _tween:
 		_tween.kill()
+	if instant:
+		_dim.modulate.a = 0.0
+		_finish_close()
+		return
 	_tween = create_tween().set_parallel(true)
 	_tween.tween_property(_dim, "modulate:a", 0.0, 0.2)
 	_tween.tween_property(_board, "position", _board_home + Vector2(0, -_board.size.y - 120.0), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
@@ -119,8 +154,17 @@ func close() -> void:
 
 func _finish_close() -> void:
 	_root.visible = false
-	_board.position = _board_home
 	_board.rotation = 0.0
+	_reset_board_layout()
+
+
+## Devolve a placa ao centro (margens originais das âncoras).
+func _reset_board_layout() -> void:
+	if _board_offsets.size() == 4:
+		_board.offset_left = _board_offsets[0]
+		_board.offset_top = _board_offsets[1]
+		_board.offset_right = _board_offsets[2]
+		_board.offset_bottom = _board_offsets[3]
 
 
 ## Lê as configurações atuais (áudio salvo e parada da partida).

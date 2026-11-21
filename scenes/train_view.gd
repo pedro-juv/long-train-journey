@@ -1,5 +1,6 @@
+class_name TrainView
 extends Node2D
-## TrainView — cenário e locomotiva, desenhados por código em estilo cartoon.
+## TrainView — cenário e locomotiva, desenhados por código ("desenho sombrio").
 ##
 ## Só apresentação: lê a velocidade e os eventos do EventBus e anima.
 ## Nenhuma regra de jogo vive aqui; tudo pode ser trocado por arte definitiva.
@@ -163,6 +164,23 @@ var _approach_sign: Dictionary = {}
 var _approach_start_m: float = 0.0
 ## Tremor da câmera (falha de peça, frenagem forte).
 var _shake: float = 0.0
+
+## Modo trem flutuante (janela pequena e transparente no desktop): só o trem,
+## o trilho e alguns elementos que mostram a região (árvores, postes, clima,
+## plataforma). O resto do cenário some para o desktop aparecer por trás.
+var floating: bool = false
+## Camadas escondidas no modo flutuante (céu, fundo, campo inteiro, escuridão).
+const FLOAT_HIDDEN := ["SkyGradient", "SkyFx", "Sun", "Clouds", "Mountains", "MistFar", "Hills", "City",
+	"CityFx", "MistNear", "GroundFx", "Dots", "Tufts", "Darkness"]
+## Zoom e enquadramento do modo flutuante.
+const FLOAT_ZOOM := 0.5
+## Ponto do mundo que fica na borda direita da janela (frente do trem + folga).
+const FLOAT_RIGHT_X := LOCO_X + 470.0
+## Distância (px) do trilho até o pé da janela (espaço do indicador de carvão).
+const FLOAT_GROUND_MARGIN := 46.0
+var _normal_zoom: float = 0.58
+## Deslocamento do mundo (unidades do mundo) que a câmera mostra no canto superior esquerdo.
+var _view_origin := Vector2.ZERO
 
 ## Escuridão na borda esquerda: avanço aleatório (_dark_surge), avanço enquanto
 ## o trem está parado (_dark_creep) e o escurecimento ao sair da estação.
@@ -832,13 +850,21 @@ func _build_layers() -> void:
 ## Uma vez por quadro: câmera, posição das camadas fixas e redesenho do necessário.
 func _update_layers(delta: float = 0.0) -> void:
 	scale = Vector2.ONE * camera_zoom
-	var size := get_viewport_rect().size / camera_zoom
+	var view := get_viewport_rect().size
+	if floating:
+		# trem à direita, trilho perto do pé da janela
+		_view_origin = Vector2(FLOAT_RIGHT_X - view.x / camera_zoom, GROUND_Y - (view.y - FLOAT_GROUND_MARGIN) / camera_zoom)
+	else:
+		_view_origin = Vector2.ZERO
+	var size := view / camera_zoom + _view_origin
 	if size != _size:
 		_size = size
 		_static_dirty = true
 	# Tranco da câmera (decai rápido). Só move o nó: nada é redesenhado.
 	_shake = maxf(0.0, _shake - delta * 2.2)
-	position = Vector2(sin(_time * 53.0), cos(_time * 41.0)) * 7.0 * _shake * _shake if _shake > 0.0 else Vector2.ZERO
+	position = -_view_origin * camera_zoom
+	if _shake > 0.0:
+		position += Vector2(sin(_time * 53.0), cos(_time * 41.0)) * 7.0 * _shake * _shake
 	_layers["Clouds"].position.x = -_off_cloud
 	_layers["Mountains"].position.x = -_off_mountain
 	_layers["Hills"].position.x = -_off_hill
@@ -855,11 +881,37 @@ func _update_layers(delta: float = 0.0) -> void:
 	if _static_dirty:
 		_static_dirty = false
 		for layer in _static_layers:
-			layer.queue_redraw()
+			if layer.visible:
+				layer.queue_redraw()
 	_frame += 1
 	for layer in _live_layers:
-		if _frame % layer.every == 0:
+		if layer.visible and _frame % layer.every == 0:
 			layer.queue_redraw()
+
+
+## Liga/desliga o modo trem flutuante: só troca enquadramento e camadas
+## visíveis. A simulação, as partículas e o tema continuam os mesmos.
+func set_floating(on: bool) -> void:
+	if on == floating:
+		return
+	floating = on
+	if on:
+		_normal_zoom = camera_zoom
+		camera_zoom = FLOAT_ZOOM
+	else:
+		camera_zoom = _normal_zoom
+	for layer_name in FLOAT_HIDDEN:
+		_layers[layer_name].visible = not on
+	_static_dirty = true
+	_update_layers()
+
+
+## Zoom do modo flutuante (o trem acompanha o tamanho da janelinha).
+func set_float_zoom(z: float) -> void:
+	if not floating:
+		return
+	camera_zoom = clampf(z, 0.2, 1.4)
+	_static_dirty = true
 
 
 ## Repete `fn(origem_x)` em blocos de `tile` cobrindo a tela mais um bloco
@@ -1121,6 +1173,15 @@ func _layer_ground() -> void:
 	var g_top: Color = _cur["ground_top"]
 	var g_bot: Color = _cur["ground_bottom"]
 	var w := _size.x + 40.0
+	if floating:
+		# modo flutuante: só uma faixa de chão sob o trilho, que some para cima
+		_grad(PackedVector2Array([Vector2(-20, GROUND_Y - 34), Vector2(w, GROUND_Y - 34), Vector2(w, GROUND_Y - 6), Vector2(-20, GROUND_Y - 6)]),
+			PackedColorArray([Color(g_top, 0.0), Color(g_top, 0.0), g_top, g_top]))
+		var ballast_f: Color = _cur["ballast"]
+		_rect(Rect2(-20, GROUND_Y - 6, w + 20, 8), g_top)
+		_rect(Rect2(-20, GROUND_Y + 2, w + 20, 34), ballast_f.darkened(0.45))
+		_rect(Rect2(-20, GROUND_Y + 5, w + 20, 28), ballast_f)
+		return
 	_grad(PackedVector2Array([Vector2(-20, GROUND_Y - 8), Vector2(w, GROUND_Y - 8), Vector2(w, _size.y + 20), Vector2(-20, _size.y + 20)]),
 		PackedColorArray([g_top, g_top, g_bot, g_bot]))
 	# faixa de luz no horizonte do campo e linha de tinta
@@ -1509,6 +1570,8 @@ func _draw_weather() -> void:
 		var colors: Array = theme["weather_colors"]
 		var fall: float = {"petals": 50.0, "leaves": 80.0, "ash": 26.0}.get(kind, 70.0)
 		var count := WEATHER_COUNT if kind == "snow" else WEATHER_COUNT / 2
+		if floating:
+			count /= 2   # janela pequena: menos partículas
 		for i in count:
 			var w: Dictionary = _weather[i]
 			var sp: float = w["speed"]
@@ -1516,6 +1579,10 @@ func _draw_weather() -> void:
 			var y := fmod(float(w["y"]) + _time * fall * sp, _size.y + 30.0) - 15.0
 			var sway := sin(_time * (1.2 if kind == "snow" else 2.0) * sp + ph) * (14.0 if kind == "snow" else 30.0)
 			var x := float(w["x"]) + sway
+			if floating:  # espalha as partículas só no trecho que a janela mostra
+				var vis := _size - _view_origin
+				y = _view_origin.y + fmod(float(w["y"]) + _time * fall * sp, vis.y + 30.0) - 15.0
+				x = _view_origin.x + fposmod(float(w["x"]), vis.x + 40.0) - 20.0 + sway
 			if x > _size.x + 20.0:
 				continue
 			var col := Color(colors[int(w["color"]) % colors.size()], alpha * 0.95)
@@ -1543,6 +1610,8 @@ func _draw_weather() -> void:
 
 
 func _draw_speed_lines() -> void:
+	if floating:
+		return
 	if _speed_ratio < 0.45:
 		return
 	var a := (_speed_ratio - 0.45) / 0.55 * 0.15

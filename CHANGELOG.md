@@ -7,6 +7,37 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.5.0] — 2026-11-21 · Trem flutuante (desktop)
+
+**Modo trem flutuante (só na versão desktop)**
+- Botão "FLUTUAR" (embaixo da engrenagem) ou "Trem flutuante" no menu de
+  opções: a janela do jogo vira uma janelinha (520 x 250) sem borda, sempre por
+  cima das outras, no canto inferior direito da tela
+- Fundo transparente de verdade (o Windows mostra o desktop por trás): ficam só
+  o trem, o trilho com uma faixa de chão, árvores, postes com lampiões, clima,
+  plataforma e placa das estações. Céu, montanhas, cidade e a escuridão somem
+- Carvão pequeno no canto e botão "+": a janela cresce para cima e mostra a
+  loja (a mesma loja da HUD, com as mesmas compras e as duas abas)
+- Botões pequenos de música e efeitos sonoros (os mesmos do menu de opções)
+- Alça no canto superior esquerdo para mudar o tamanho: o trem acompanha a
+  altura. Tamanho e lugar ficam salvos para a próxima vez
+- Arrastar em qualquer parte move a janela; fora do trem e da barra o clique
+  atravessa para o que está atrás
+- Voltar à janela normal: botão, ESC ou duplo clique no trem (mesmo tamanho e
+  lugar de antes). Botão X fecha o jogo salvando
+- Mesma partida em memória e mesmo save: nada recarrega ao alternar
+- Corrigido: abrir o menu de opções e ir para o trem flutuante deixava a placa
+  do menu torta e fora do lugar nas vezes seguintes
+- Mais leve: limitado a 30 quadros por segundo e camadas escondidas não são
+  redesenhadas
+
+**Executável do Windows**
+- `gerar-exe.ps1` gera `build\windows\IdleTrain.exe` (um arquivo só, com a
+  versão e a branch no canto do jogo)
+
+**Não incluído:** o save do desktop e o do navegador continuam separados
+(cada um no seu armazenamento local; o projeto não tem conta nem nuvem)
+
 ## [0.4.0] — 2026-11-20 · Desenho sombrio e a escuridão
 
 **Arte (desenho sombrio, provisório)**

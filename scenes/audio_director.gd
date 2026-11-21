@@ -212,6 +212,7 @@ func _load_settings() -> void:
 
 func _save_settings() -> void:
 	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)   # mantém as outras seções (ex.: janela do trem flutuante)
 	cfg.set_value("audio", "music", music_enabled)
 	cfg.set_value("audio", "sfx", sfx_enabled)
 	cfg.save(SETTINGS_PATH)
