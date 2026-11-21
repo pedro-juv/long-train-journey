@@ -26,6 +26,10 @@ Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito 
 - Mais leve: limitado a 30 quadros por segundo e camadas escondidas não são
   redesenhadas
 
+**Executável do Windows**
+- `gerar-exe.ps1` gera `build\windows\IdleTrain.exe` (um arquivo só, com a
+  versão e a branch no canto do jogo)
+
 **Não incluído:** o save do desktop e o do navegador continuam separados
 (cada um no seu armazenamento local; o projeto não tem conta nem nuvem)
 
