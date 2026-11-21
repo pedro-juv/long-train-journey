@@ -116,7 +116,7 @@ func _run() -> void:
 	var expected_click := (1.0 + g.state.total_production() * 0.02) * 2.0
 	var stoke_before := g.state.stoke
 	hud.get_node("%ClickButton").pressed.emit()
-	_check(absf(g.state.stock.amount - clicks_before - expected_click) < 0.01 * expected_click + 1.0, "clique = (1 + 2% da produção) x2 com a 1ª melhoria (%.1f)" % expected_click)
+	_check(absf(g.state.stock.amount - clicks_before - expected_click) < 0.01 * expected_click + 1.0, "clique = (1 + 2%% da produção) x2 com a 1ª melhoria (%.1f)" % expected_click)
 	_check(g.state.stoke > stoke_before, "clique atiça a caldeira")
 
 	print("Save")

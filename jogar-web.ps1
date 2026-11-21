@@ -1,5 +1,6 @@
 # Exporta o jogo para Web e abre no navegador (http://localhost:8060)
 # Uso: clique direito -> "Executar com o PowerShell"  ou  powershell -ExecutionPolicy Bypass -File jogar-web.ps1
+param([switch]$Release)  # -Release: exporta sem depuração (mais rápido)
 $ErrorActionPreference = "Stop"
 $godot = "D:\Godot\Godot_v4.7.2-stable_win64_console.exe"
 $root  = $PSScriptRoot
@@ -15,7 +16,9 @@ $dirty  = if (git -C $root status --porcelain) { " *" } else { "" }
 Set-Content (Join-Path $root "build_info.txt") "$branch ($commit$dirty)" -Encoding ascii
 Write-Host "Versao: $branch ($commit$dirty)"
 Write-Host "Exportando..."
-& $godot --headless --path $root --export-debug "Web" "$out\index.html"
+$mode = if ($Release) { "--export-release" } else { "--export-debug" }
+Write-Host "Modo: $(if ($Release) { "release" } else { "debug" })"
+& $godot --headless --path $root $mode "Web" "$out\index.html"
 if (-not (Test-Path "$out\index.html")) { Write-Host "Falha na exportacao. Modelos de exportacao instalados?"; Read-Host "Enter para sair"; exit 1 }
 
 $types = @{ ".html"="text/html"; ".js"="application/javascript"; ".wasm"="application/wasm";

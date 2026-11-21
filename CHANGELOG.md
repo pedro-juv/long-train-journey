@@ -28,6 +28,15 @@ Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito 
 - Cada clique soma pressão à caldeira (barra laranja): até +30% de velocidade,
   escoando sozinha em poucos segundos. Fornalha brilha e solta brasas
 
+**Desempenho**
+- Cenário em camadas: céu, montanhas, cidade, árvores, campo, trilho, postes,
+  mato e carroceria do trem são desenhados uma vez e só deslizam/balançam;
+  só rodas, bielas, fumaça, faíscas, clima e brilhos redesenham a cada quadro.
+  Desenho por quadro: 3,4 ms → 0,5 ms; quadro total 6,4 ms → 2,1 ms (desktop)
+- Contador de FPS no canto e `jogar-web.ps1 -Release` para testar sem depuração
+- Ferramentas: `tests/benchmark.tscn` (tempo por camada) e `tests/capture.tscn`
+  (capturas de tela por tema)
+
 **Balanceamento**
 - Superaquecedor 2 mi → 1,4 mi; Isolamento térmico 6 mi → 3 mi
 - Corrigidas as 2 falhas pendentes: toda melhoria de estação fica comprável em

@@ -60,6 +60,9 @@ var _shop_signature: String = ""
 var _stoke_bar: ProgressBar
 ## Botão "Parar nas estações".
 var _stop_button: Button
+var _version_label: Label
+var _version_text: String = ""
+var _fps_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -107,9 +110,8 @@ func _add_version_label() -> void:
 		info = head.trim_prefix("ref: refs/heads/") if head.begins_with("ref:") else head.left(7)
 	var version := str(ProjectSettings.get_setting("application/config/version", ""))
 	var label := Label.new()
-	label.text = ("v" + version if version else "") + ("  ·  " + info if info else "")
-	if label.text.is_empty():
-		return
+	_version_text = ("v" + version if version else "") + ("  ·  " + info if info else "")
+	label.text = _version_text
 	label.add_theme_font_size_override("font_size", 14)
 	label.add_theme_color_override("font_color", Color(C_CREAM, 0.75))
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
@@ -119,9 +121,16 @@ func _add_version_label() -> void:
 	label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	label.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	add_child(label)
+	_version_label = label
 
 
 func _process(delta: float) -> void:
+	# FPS no canto (fase de desenvolvimento), para medir desempenho.
+	if _version_label:
+		_fps_timer += delta
+		if _fps_timer >= 0.5:
+			_fps_timer = 0.0
+			_version_label.text = "%d FPS  ·  %s" % [Engine.get_frames_per_second(), _version_text]
 	_shop_timer += delta
 	if _shop_timer >= SHOP_REFRESH_INTERVAL:
 		_shop_timer = 0.0
