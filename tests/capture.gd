@@ -2,7 +2,7 @@ extends Node
 ## Captura telas do jogo em alguns temas (comparação visual).
 ## Rodar: godot --path . res://tests/capture.tscn -- <pasta_de_saida>
 
-const THEMES := [["inicio", -1], ["primavera", 1], ["verao", 2], ["outono", 3], ["inverno", 4]]
+const THEMES := [["inicio", -1], ["tomada", 1], ["deserto", 2], ["ruinas", 3], ["inverno", 4]]
 
 var _main: Node
 
@@ -33,7 +33,7 @@ func _ready() -> void:
 		img.save_png(out.path_join("%s.png" % t[0]))
 		print("capturado: ", t[0])
 	# parada na estação: plataforma, placa e lampiões
-	view._station_signs.append({"x": view._platform_stop_x(), "name": "Primavera"})
+	view._station_signs.append({"x": view._platform_stop_x(), "name": "Cidade Tomada"})
 	view._on_train_state_changed(TrainMovement.State.AT_STATION)
 	view._on_speed_changed(0.0, 0.0, 0.0)
 	game.set_process(false)

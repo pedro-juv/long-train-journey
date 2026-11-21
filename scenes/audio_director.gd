@@ -21,9 +21,10 @@ const MUSIC_FADE_SECONDS := 2.5
 ## Uma variação da trilha por tema de região (scenes/season_themes.gd).
 const MUSIC_BY_THEME := {
 	"inicio": "res://assets/audio/musica_steampunk.ogg",
-	"primavera": "res://assets/audio/musica_primavera.ogg",
-	"verao": "res://assets/audio/musica_verao.ogg",
-	"outono": "res://assets/audio/musica_outono.ogg",
+	# variações compostas para as antigas Primavera, Verão e Outono (provisórias)
+	"tomada": "res://assets/audio/musica_primavera.ogg",
+	"deserto": "res://assets/audio/musica_verao.ogg",
+	"ruinas": "res://assets/audio/musica_outono.ogg",
 	"inverno": "res://assets/audio/musica_inverno.ogg",
 }
 const CHUFF_DB_MIN := -26.0

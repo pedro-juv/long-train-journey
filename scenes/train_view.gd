@@ -144,6 +144,9 @@ var _far_points: PackedVector2Array
 var _hill_points: PackedVector2Array
 var _buildings: Array[Dictionary] = []
 var _tufts: Array[Vector2] = []
+## Carros, ônibus e caminhões abandonados (perto do trilho, mesma camada de
+## profundidade das árvores).
+var _wrecks: Array[Dictionary] = []
 
 var _smoke: Array[Dictionary] = []
 var _sparks: Array[Dictionary] = []
@@ -578,6 +581,7 @@ func _build_city() -> void:
 			"chimney": _rng.randf() < 0.55, "cx": _rng.randf_range(0.2, 0.8), "ch": _rng.randf_range(40, 95),
 			"gear": _rng.randf() < 0.18, "windows": _rng.randi_range(1, 4), "roof": _rng.randf() < 0.4,
 			"spire": _rng.randf() < 0.25, "ruin": _rng.randf(), "seed": _rng.randf_range(0, TAU),
+			"exist": _rng.randf(), "tall_k": _rng.randf_range(0.8, 2.3), "vine": _rng.randf(),
 		})
 		x += w + _rng.randf_range(14, 90)
 
@@ -590,6 +594,11 @@ func _build_scenery_extras() -> void:
 		_trees.append({"x": x, "scale": _rng.randf_range(1.6, 2.6), "color": _rng.randi_range(0, 5),
 			"rand": _rng.randf(), "y": _rng.randf_range(-6.0, 8.0)})
 		x += _rng.randf_range(110.0, 230.0)
+	x = 80.0
+	while x < TREE_TILE - 200.0:
+		_wrecks.append({"x": x, "kind": _rng.randi_range(0, 2), "flip": _rng.randf() < 0.5, "tilt": _rng.randf_range(-0.08, 0.08),
+			"rand": _rng.randf(), "y": _rng.randf_range(-4.0, 6.0), "seed": _rng.randf_range(0, TAU)})
+		x += _rng.randf_range(320.0, 620.0)
 	for i in 9:
 		_clouds.append({"x": _rng.randf_range(0, CLOUD_TILE), "y": _rng.randf_range(50, GROUND_Y * 0.42), "scale": _rng.randf_range(1.0, 2.0)})
 	for i in 110:
@@ -826,6 +835,7 @@ func _build_layers() -> void:
 	_add_layer("CityFx", _layer_city_fx, true, 3)     # fumacinha distante: lenta
 	_add_layer("MistNear", _layer_mist.bind(1), false)
 	_add_layer("Trees", _layer_trees, false)
+	_add_layer("Wrecks", _layer_wrecks, false)
 	_add_layer("Ground", _layer_ground, false)
 	_add_layer("GroundFx", _layer_ground_fx, true)
 	_add_layer("Dots", _layer_dots, false)
@@ -871,6 +881,7 @@ func _update_layers(delta: float = 0.0) -> void:
 	_layers["City"].position.x = -_off_city
 	_layers["CityFx"].position.x = -_off_city
 	_layers["Trees"].position.x = -_off_tree
+	_layers["Wrecks"].position.x = -_off_tree
 	_layers["Dots"].position.x = -_off_dots
 	_layers["Track"].position.x = -_off_track
 	_layers["Poles"].position.x = -_off_poles
@@ -1034,8 +1045,10 @@ func _layer_mist(which: int) -> void:
 
 ## Colinas entre as montanhas e a cidade: dão profundidade ao mundo maior.
 func _layer_hills() -> void:
+	var dunes: float = _cur["dunes"]
 	var col := (_cur["mountain"] as Color).lerp(_cur["ground_top"], 0.4).darkened(0.25)
-	var rim := col.lightened(0.12)
+	col = col.lerp((_cur["ground_top"] as Color).darkened(0.06), dunes)   # areia
+	var rim := col.lightened(0.12 + 0.08 * dunes)
 	_tiled(HILL_TILE, func(ox: float):
 		var poly := PackedVector2Array()
 		for p in _hill_points:
@@ -1052,19 +1065,26 @@ func _layer_city() -> void:
 	var col: Color = _cur["city"]
 	var rim := col.lightened(0.10)
 	var lit_a: float = _cur["window"]
-	var gloom: float = _cur["gloom"]
+	var ruin: float = _cur["ruin"]
+	var vines: float = _cur["vines"]
+	var tall: float = _cur["tall"]
+	var density: float = _cur["city_density"]
 	var snow: float = _cur["snow"]
+	var green := Color(0.22, 0.34, 0.18).lerp(col, 0.25)
 	_tiled(CITY_TILE, func(ox: float):
 		for b in _buildings:
 			var x: float = ox + b["x"]
 			if x > _size.x + CITY_TILE or x + b["w"] < -CITY_TILE:
 				continue
+			if float(b["exist"]) > density:
+				continue   # deserto: quase nada de pé
 			var w: float = b["w"]
-			var h: float = b["h"]
+			# arranha-céus nas ruínas grandes (até ~3x mais altos)
+			var h: float = b["h"] * (1.0 + tall * float(b["tall_k"]))
 			var top: float = GROUND_Y - 30.0 - h
 			var sd: float = b["seed"]
-			# ruínas: quanto mais sombria a região, mais prédios quebrados
-			var ruined: bool = float(b["ruin"]) < gloom * 0.55
+			# ruínas: topo quebrado (fração do tema da região)
+			var ruined: bool = float(b["ruin"]) < ruin
 			if ruined:
 				top += h * 0.3
 				_rect(Rect2(x, top, w, GROUND_Y - top), col)
@@ -1087,6 +1107,27 @@ func _layer_city() -> void:
 				if snow > 0.02:  # neve no telhado
 					_rect(Rect2(x - 3, top - 4, w + 6, 6), Color(0.80, 0.88, 0.92, 0.8 * snow))
 			_rect(Rect2(x, top, 3, GROUND_Y - top), rim)   # luz fria na quina
+			# andares vazios dos arranha-céus (buracos escuros em grade)
+			if tall > 0.05 and h > 260.0:
+				var hole := Color(col.darkened(0.4), tall)
+				var fy := top + 40.0
+				while fy < GROUND_Y - 60.0:
+					for cx in [0.22, 0.5, 0.78]:
+						if absf(sin(sd * 3.0 + fy * 0.07 + cx * 9.0)) > 0.25:
+							_rect(Rect2(x + w * cx - 6.0, fy, 12.0, 16.0), hole)
+					fy += 36.0
+			# mato e trepadeiras descendo do topo
+			if vines > 0.02 and float(b["vine"]) < 0.85:
+				var g := Color(green, vines)
+				_rect(Rect2(x - 2, top - 3, w + 4, 7), g)
+				for k in 3:
+					var vx := x + w * (0.18 + 0.32 * k) + sin(sd + k) * 6.0
+					var vl := (0.25 + 0.5 * absf(sin(sd * 2.0 + k * 1.3))) * (GROUND_Y - top) * vines
+					_line(Vector2(vx, top), Vector2(vx + sin(sd + k * 2.0) * 8.0, top + vl), g, 5.0)
+					for j in int(vl / 26.0):
+						_circle(Vector2(vx + sin(sd + j) * 7.0, top + 12.0 + j * 26.0), 6.0, g)
+				_circle(Vector2(x + w * 0.3, top - 4), 12.0 * vines, g)
+				_circle(Vector2(x + w * 0.72, top - 2), 9.0 * vines, g)
 			# janelas em arco; as acesas brilham na névoa
 			for wi in b["windows"]:
 				var wr := Rect2(x + 12 + wi * 30, top + 22, 10, 16)
@@ -1120,9 +1161,90 @@ func _layer_trees() -> void:
 				var col: Color = (colors[int(t["color"]) % colors.size()] as Color).lerp(_cur["city"], 0.15 + 0.35 * float(_cur["gloom"]))
 				if theme["tree_shape"] == "pine":
 					_draw_pine(foot, sc, col, alpha, float(_cur["snow"]))
+				elif theme["tree_shape"] == "dead":
+					_draw_dead_tree(foot, sc, col, alpha, float(t["rand"]))
 				else:
 					_draw_round_tree(foot, sc, col, alpha, theme["blossom"])
 		)
+
+
+## Árvore seca: tronco torto e galhos sem folha.
+func _draw_dead_tree(foot: Vector2, sc: float, col: Color, alpha: float, rnd: float) -> void:
+	var c := Color(col, alpha)
+	var lean := (rnd - 0.5) * 16.0 * sc
+	var top := foot + Vector2(lean, -70.0 * sc)
+	_line(foot, foot.lerp(top, 0.55) + Vector2(-lean * 0.3, 0), c, 8.0 * sc)
+	_line(foot.lerp(top, 0.55) + Vector2(-lean * 0.3, 0), top, c, 5.5 * sc)
+	for k in 4:
+		var t := 0.4 + k * 0.17
+		var base := foot.lerp(top, t)
+		var side := -1.0 if k % 2 == 0 else 1.0
+		var tip := base + Vector2(side * (20.0 + 10.0 * sin(rnd * 9.0 + k)) * sc, -(16.0 + 6.0 * k) * sc)
+		_line(base, tip, c, (4.0 - k * 0.6) * sc)
+		_line(tip, tip + Vector2(side * 9.0 * sc, -10.0 * sc), c, 2.0 * sc)
+		_line(base.lerp(tip, 0.6), base.lerp(tip, 0.6) + Vector2(-side * 4.0 * sc, -12.0 * sc), c, 1.8 * sc)
+
+
+## Carros, ônibus e caminhões largados: lataria enferrujada, sem rodas,
+## tomados pelo mato ou cobertos de areia/neve conforme a região.
+func _layer_wrecks() -> void:
+	var amount: float = _cur["wrecks"]
+	if amount <= 0.02:
+		return
+	var rust := Color(0.40, 0.23, 0.14).lerp(_cur["city"], 0.45)
+	var dark := rust.darkened(0.45)
+	var vines: float = _cur["vines"]
+	var snow: float = _cur["snow"]
+	var dunes: float = _cur["dunes"]
+	var green := Color(0.22, 0.34, 0.18).lerp(_cur["city"], 0.2)
+	var sand := (_cur["ground_top"] as Color)
+	_tiled(TREE_TILE, func(ox: float):
+		for wr in _wrecks:
+			if float(wr["rand"]) > amount:
+				continue
+			var x: float = ox + wr["x"]
+			if x < -260.0 or x > _size.x + TREE_TILE:
+				continue
+			var kind: int = wr["kind"]
+			var length: float = [130.0, 230.0, 170.0][kind]
+			var height: float = [34.0, 62.0, 48.0][kind]
+			var base := Vector2(x, GROUND_Y - 8.0 + float(wr["y"]))
+			var tilt: float = wr["tilt"]
+			var up := Vector2(sin(tilt), -cos(tilt))
+			var along := Vector2(cos(tilt), sin(tilt))
+			var body := PackedVector2Array([base, base + along * length, base + along * length + up * height, base + up * height])
+			_ink_poly(body, rust, 2.0, dark)
+			match kind:
+				0:  # carro: cabine com janelas vazias
+					var c0 := base + along * length * 0.25 + up * height
+					var c1 := base + along * length * 0.72 + up * height
+					var cab := PackedVector2Array([c0, c1, c1 + up * 24.0 - along * 14.0, c0 + up * 24.0 + along * 12.0])
+					_ink_poly(cab, rust, 2.0, dark)
+					_quad(PackedVector2Array([c0 + along * 14.0 + up * 3.0, c1 - along * 18.0 + up * 3.0, c1 - along * 24.0 + up * 19.0, c0 + along * 18.0 + up * 19.0]), dark)
+				1:  # ônibus: fileira de janelas
+					for k in 6:
+						var wx := base + along * (14.0 + k * 35.0) + up * (height - 34.0)
+						_quad(PackedVector2Array([wx, wx + along * 24.0, wx + along * 24.0 + up * 20.0, wx + up * 20.0]), dark)
+				2:  # caminhão: cabine alta na frente
+					var front := base + along * (length * 0.72)
+					var cab2 := PackedVector2Array([front + up * height, front + along * length * 0.28 + up * height,
+						front + along * length * 0.28 + up * (height + 30.0), front + along * 6.0 + up * (height + 30.0)])
+					_ink_poly(cab2, rust.lightened(0.05), 2.0, dark)
+			# rodas faltando: só os buracos escuros
+			for wx in [0.18, 0.82]:
+				_circle(base + along * length * wx + up * 4.0, 12.0, dark)
+			# manchas de ferrugem
+			_circle(base + along * length * 0.4 + up * height * 0.5, height * 0.22, Color(0.55, 0.30, 0.16, 0.5))
+			if vines > 0.02:  # mato por cima e em volta
+				var g := Color(green, vines)
+				for k in 5:
+					_circle(base + along * length * (0.1 + k * 0.2) + up * (height + 4.0 + 5.0 * sin(float(wr["seed"]) + k)), 9.0 + 4.0 * sin(k * 1.7), g)
+				_circle(base + along * length * 0.05 + up * 6.0, 14.0, g)
+			if dunes > 0.02:  # areia acumulada de um lado
+				_poly(PackedVector2Array([base + along * length * 0.55, base + along * (length + 40.0), base + along * length * 0.9 + up * height * 0.7]), Color(sand, dunes))
+			if snow > 0.02:
+				_rect(Rect2(base + up * (height + 4.0), Vector2(length * 0.9, 6.0)), Color(0.80, 0.88, 0.92, 0.85 * snow))
+	)
 
 
 func _draw_round_tree(foot: Vector2, sc: float, col: Color, alpha: float, blossom: bool) -> void:
@@ -1252,6 +1374,7 @@ func _layer_poles() -> void:
 	var pole := WOOD_DARK
 	var ink := INK
 	var lamp: float = _cur["lamp"]
+	var vines: float = _cur["vines"]
 	while x < _size.x + POLE_SPACING * 2.0:
 		_ink_group([["r", Rect2(x, GROUND_Y - 220, 11, 220), pole], ["r", Rect2(x - 24, GROUND_Y - 208, 59, 8), pole]], 2.5, ink)
 		_rect(Rect2(x, GROUND_Y - 220, 3, 220), pole.lightened(0.10))
@@ -1266,6 +1389,10 @@ func _layer_poles() -> void:
 			_glow(lp, 40.0, Color(WARM_LIGHT, 0.45 * lamp))
 		_ink_rect(Rect2(lp - Vector2(7, 12), Vector2(14, 22)), CHARCOAL.lerp(WARM_LIGHT, lamp), 2.5, ink)
 		_ink_poly(PackedVector2Array([lp + Vector2(-10, -12), lp + Vector2(0, -20), lp + Vector2(10, -12)]), CHARCOAL, 2.0, ink)
+		if vines > 0.02:  # trepadeira subindo pelo poste
+			var g := Color(Color(0.22, 0.34, 0.18), vines)
+			for k in 7:
+				_circle(Vector2(x + 5 + sin(k * 1.9) * 7.0, GROUND_Y - 12 - k * 22.0), 8.0 - k * 0.5, g)
 		tops.append(Vector2(x, GROUND_Y - 213))
 		x += POLE_SPACING
 	# fios caídos entre os postes
@@ -1376,8 +1503,8 @@ func _layer_city_fx() -> void:
 			if x > view_right or x + b["w"] < view_left:
 				continue
 			var top: float = GROUND_Y - 30.0 - b["h"]
-			if float(b["ruin"]) < float(_cur["gloom"]) * 0.55:
-				continue   # ruína: sem chaminé nem engrenagem
+			if float(b["ruin"]) < float(_cur["ruin"]) or float(b["exist"]) > float(_cur["city_density"]) or float(_cur["tall"]) > 0.3:
+				continue   # ruína, prédio ausente ou arranha-céu: sem chaminé nem engrenagem
 			if b["chimney"]:
 				var cx: float = x + b["w"] * b["cx"]
 				for j in 3:
@@ -1559,7 +1686,7 @@ func _draw_sparks() -> void:
 		_circle(s["pos"], 3.4, Color(1.0, 0.78, 0.3, a))
 
 
-## Clima em primeiro plano: pétalas (primavera), folhas (outono) ou neve (inverno).
+## Clima em primeiro plano: cinzas, esporos, poeira, partículas de luz ou neve.
 func _draw_weather() -> void:
 	for pair in _blend_weights():
 		var theme := SeasonThemes.get_theme(pair[0])
@@ -1568,20 +1695,21 @@ func _draw_weather() -> void:
 		if kind == "none" or alpha <= 0.01:
 			continue
 		var colors: Array = theme["weather_colors"]
-		var fall: float = {"petals": 50.0, "leaves": 80.0, "ash": 26.0}.get(kind, 70.0)
-		var count := WEATHER_COUNT if kind == "snow" else WEATHER_COUNT / 2
+		# queda (px/s): negativo sobe (esporos e partículas de luz)
+		var fall: float = {"petals": 50.0, "leaves": 80.0, "ash": 26.0, "spores": -16.0, "motes": -22.0, "dust": 10.0}.get(kind, 70.0)
+		var count := WEATHER_COUNT if kind == "snow" or kind == "dust" else WEATHER_COUNT / 2
 		if floating:
 			count /= 2   # janela pequena: menos partículas
 		for i in count:
 			var w: Dictionary = _weather[i]
 			var sp: float = w["speed"]
 			var ph: float = w["phase"]
-			var y := fmod(float(w["y"]) + _time * fall * sp, _size.y + 30.0) - 15.0
+			var y := fposmod(float(w["y"]) + _time * fall * sp, _size.y + 30.0) - 15.0
 			var sway := sin(_time * (1.2 if kind == "snow" else 2.0) * sp + ph) * (14.0 if kind == "snow" else 30.0)
 			var x := float(w["x"]) + sway
 			if floating:  # espalha as partículas só no trecho que a janela mostra
 				var vis := _size - _view_origin
-				y = _view_origin.y + fmod(float(w["y"]) + _time * fall * sp, vis.y + 30.0) - 15.0
+				y = _view_origin.y + fposmod(float(w["y"]) + _time * fall * sp, vis.y + 30.0) - 15.0
 				x = _view_origin.x + fposmod(float(w["x"]), vis.x + 40.0) - 20.0 + sway
 			if x > _size.x + 20.0:
 				continue
@@ -1591,6 +1719,18 @@ func _draw_weather() -> void:
 			match kind:
 				"snow":
 					_circle(pos, 3.2 * sz, col)
+				"spores":  # esporos boiando, com brilho fraco
+					var p2 := pos + Vector2(sin(_time * 0.7 * sp + ph) * 20.0, 0)
+					_glow(p2, 9.0 * sz, Color(col, 0.30 * alpha))
+					_circle(p2, 1.5 * sz, Color(col, 0.9 * alpha))
+				"motes":  # partículas de luz subindo devagar
+					var tw := 0.5 + 0.5 * sin(_time * 2.0 * sp + ph)
+					_glow(pos, 14.0 * sz, Color(col, 0.35 * tw * alpha))
+					_circle(pos, 1.8 * sz, Color(col, (0.5 + 0.5 * tw) * alpha))
+				"dust":  # poeira soprando com o vento
+					var dx := fposmod(float(w["x"]) - _time * 420.0 * sp, _size.x + 200.0) - 100.0 + (_view_origin.x if floating else 0.0)
+					var dp := Vector2(dx, pos.y)
+					_line(dp, dp + Vector2(26.0 * sz, -1.5), Color(col, 0.30 * alpha), 2.0 * sz)
 				"ash":
 					if int(w["color"]) == 0:   # brasa
 						_glow(pos, 12.0 * sz, Color(1.0, 0.5, 0.18, 0.45 * alpha))

@@ -121,15 +121,15 @@ var station_stop_seconds: float = 5.0
 # ---------------------------------------------------------------------------
 ## Campos: name, length (metros do trecho desde a estação anterior),
 ## theme (tema visual e musical da região, a partir da chegada na estação;
-## os temas são definidos em scenes/train_view.gd e scenes/audio_director.gd).
+## os temas são definidos em scenes/season_themes.gd e scenes/audio_director.gd).
 ## A recompensa de cada estação é a melhoria com requires {"station": índice};
 ## produtores com unlock_station também são liberados por ela.
 var stations: Array[Dictionary] = [
 	{"name": "Estação Inicial", "length": 3500.0, "theme": "inicio"},
-	{"name": "Primavera", "length": 7000.0, "theme": "primavera"},
-	{"name": "Verão", "length": 14000.0, "theme": "verao"},
-	{"name": "Outono", "length": 28000.0, "theme": "outono"},
-	{"name": "Inverno", "length": 56000.0, "theme": "inverno"},
+	{"name": "Cidade Tomada", "length": 7000.0, "theme": "tomada"},
+	{"name": "Deserto de Ferrugem", "length": 14000.0, "theme": "deserto"},
+	{"name": "Ruínas Brancas", "length": 28000.0, "theme": "ruinas"},
+	{"name": "Ermo Gelado", "length": 56000.0, "theme": "inverno"},
 ]
 
 # ---------------------------------------------------------------------------
@@ -178,7 +178,7 @@ var repair_seconds_of_production: float = 20.0
 ## A manutenção automática conserta a peça quando ela chega a esta integridade.
 var auto_repair_threshold: float = 0.10
 
-## Índice da estação que libera a compra da manutenção automática (Outono).
+## Índice da estação que libera a compra da manutenção automática (Ruínas Brancas).
 var auto_maintenance_unlock_station: int = 3
 
 ## Abaixo desta integridade a interface avisa o jogador.

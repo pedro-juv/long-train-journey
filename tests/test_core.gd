@@ -133,7 +133,7 @@ func _test_route() -> void:
 	_check(is_equal_approx(r.progress(1750.0), 0.5), "progresso no 1º trecho")
 	var got := r.update(11000.0)
 	_check(str(got) == str([0, 1]), "pode alcançar duas estações de uma vez")
-	_check(r.next_station_name() == "Verão" and is_equal_approx(r.progress(10500.0 + 7000.0), 0.5), "progresso conta a partir da última estação")
+	_check(r.next_station_name() == "Deserto de Ferrugem" and is_equal_approx(r.progress(10500.0 + 7000.0), 0.5), "progresso conta a partir da última estação")
 	r.update(1e9)
 	_check(r.is_complete() and r.next_station_name() == "", "rota completa")
 
@@ -202,7 +202,7 @@ func _test_offline() -> void:
 	_check(absf(s.stock.amount - (stock0 + expected_stock)) < 1.0, "produção vale a hora inteira, mesmo esperando")
 	_check(s.train.state == TrainMovement.State.AT_STATION and s.station_stop_left > 0.0, "ao voltar, o trem está parado na plataforma")
 	var res2 := s.apply_offline(3600.0)
-	_check(is_equal_approx(res2["distance"], 7000.0) and str(res2["stations"]) == str([1]), "nova ausência: anda só até a Primavera")
+	_check(is_equal_approx(res2["distance"], 7000.0) and str(res2["stations"]) == str([1]), "nova ausência: anda só até a Cidade Tomada")
 
 	var B2 = load("res://autoload/balance.gd").new()
 	B2.offline_stop_at_next_station = false
@@ -307,7 +307,7 @@ func _test_components() -> void:
 	_check(is_equal_approx(s.component("rodas").integrity, 1.0), "sem desgaste nos primeiros minutos")
 	_reach(s, 0)
 	_check(s.is_component_active("rodas") and s.is_component_active("caldeira") and s.is_component_active("pistoes"), "Estação Inicial libera Rodas, Caldeira e Pistões")
-	_check(not s.is_component_active("freios"), "Freios só na Primavera")
+	_check(not s.is_component_active("freios"), "Freios só na Cidade Tomada")
 	_check(s.component("rodas").material_name() == "ferro fundido", "rodas de ferro fundido (1º material)")
 	var st := s.stock
 	s.maintenance.wear(1500.0, 10.0, s.route, st, 1.0)
@@ -373,7 +373,7 @@ func _test_repair_reinforce_tools() -> void:
 	for i in 2:
 		s.reinforce_component("rodas")
 	_check(absf(c.life() - 41160.0) < 1.0, "nível 3: ~41 km")
-	_check(not s.is_upgrade_available("tools"), "Kit de ferramentas só na Primavera")
+	_check(not s.is_upgrade_available("tools"), "Kit de ferramentas só na Cidade Tomada")
 	_reach(s, 1)
 	_check(s.buy_upgrade("tools") and is_equal_approx(s.maintenance.stop_seconds(), 9.0), "Kit: parada de 15 s para 9 s")
 
@@ -385,9 +385,9 @@ func _test_auto_maintenance_and_materials() -> void:
 	for i in 10:
 		s.buy_producer("foguista")
 	_reach(s, 2)
-	_check(not s.is_auto_available("rodas"), "manutenção automática bloqueada antes do Outono")
+	_check(not s.is_auto_available("rodas"), "manutenção automática bloqueada antes do Ruínas Brancas")
 	_reach(s, 3)
-	_check(s.is_auto_available("rodas"), "Outono libera a manutenção automática")
+	_check(s.is_auto_available("rodas"), "Ruínas Brancas libera a manutenção automática")
 	_check(s.component("rodas").auto_cost() == 5e6 and s.component("chamine").auto_cost() == 2e7, "custa 5 mi (rodas) a 20 mi (chaminé)")
 	_check(s.buy_auto_maintenance("rodas") and s.component("rodas").has_auto(), "comprada para as rodas de ferro fundido")
 	_check(not s.is_auto_available("rodas"), "não compra duas vezes para o mesmo material")
