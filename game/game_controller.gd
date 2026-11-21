@@ -118,12 +118,16 @@ func set_stop_at_stations(enabled: bool) -> void:
 	save_now()
 
 
-## Apaga o save e recomeça (botão de teste na HUD).
+## Apaga o save e recomeça (menu de opções). A preferência de parada
+## automática é do jogador, não da partida: continua a mesma.
 func reset_game() -> void:
+	var keep_stop := state.stop_at_stations
 	SaveManager.delete_save()
 	state = GameState.new(Balance)
+	state.stop_at_stations = keep_stop
 	_autosave_timer = 0.0
 	_announce_full_state({})
+	save_now()
 
 
 func save_now() -> void:

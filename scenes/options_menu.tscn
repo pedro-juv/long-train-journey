@@ -1,0 +1,150 @@
+[gd_scene load_steps=3 format=3 uid="uid://c3opcoesmenu"]
+
+[ext_resource type="Script" path="res://scenes/options_menu.gd" id="1_menu"]
+[ext_resource type="Script" path="res://scenes/ui/lever_switch.gd" id="2_lever"]
+
+[node name="OptionsMenu" type="CanvasLayer"]
+process_mode = 3
+layer = 20
+script = ExtResource("1_menu")
+
+[node name="Root" type="Control" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dim" type="ColorRect" parent="Root"]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.08, 0.04, 0.04, 0.6)
+
+[node name="Board" type="PanelContainer" parent="Root"]
+unique_name_in_owner = true
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -270.0
+offset_top = -290.0
+offset_right = 270.0
+offset_bottom = 290.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="Root/Board"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 6
+
+[node name="VBox" type="VBoxContainer" parent="Root/Board/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Root/Board/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+text = "OPÇÕES"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Root/Board/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Jogo pausado  ·  ESC para voltar"
+horizontal_alignment = 1
+
+[node name="AudioHeader" type="Label" parent="Root/Board/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "ÁUDIO"
+
+[node name="MusicRow" type="HBoxContainer" parent="Root/Board/Margin/VBox"]
+layout_mode = 2
+
+[node name="MusicLabel" type="Label" parent="Root/Board/Margin/VBox/MusicRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Música"
+
+[node name="MusicSwitch" type="Control" parent="Root/Board/Margin/VBox/MusicRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(170, 64)
+layout_mode = 2
+script = ExtResource("2_lever")
+
+[node name="SfxRow" type="HBoxContainer" parent="Root/Board/Margin/VBox"]
+layout_mode = 2
+
+[node name="SfxLabel" type="Label" parent="Root/Board/Margin/VBox/SfxRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Efeitos sonoros"
+
+[node name="SfxSwitch" type="Control" parent="Root/Board/Margin/VBox/SfxRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(170, 64)
+layout_mode = 2
+script = ExtResource("2_lever")
+
+[node name="GameplayHeader" type="Label" parent="Root/Board/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "GAMEPLAY"
+
+[node name="StopRow" type="HBoxContainer" parent="Root/Board/Margin/VBox"]
+layout_mode = 2
+
+[node name="StopText" type="VBoxContainer" parent="Root/Board/Margin/VBox/StopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+
+[node name="StopLabel" type="Label" parent="Root/Board/Margin/VBox/StopRow/StopText"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Parada automática"
+
+[node name="StopHint" type="Label" parent="Root/Board/Margin/VBox/StopRow/StopText"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Ligada: o trem para em cada estação.
+Desligada: passa direto (a 1ª sempre para)."
+
+[node name="StopSwitch" type="Control" parent="Root/Board/Margin/VBox/StopRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(170, 64)
+layout_mode = 2
+script = ExtResource("2_lever")
+
+[node name="ResetButton" type="Button" parent="Root/Board/Margin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Reiniciar partida (apaga o save)"
+
+[node name="Spacer" type="Control" parent="Root/Board/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="BackButton" type="Button" parent="Root/Board/Margin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "VOLTAR AO JOGO"

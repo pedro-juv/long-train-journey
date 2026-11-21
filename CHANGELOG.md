@@ -7,6 +7,80 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.4.0] — 2026-11-20 · Desenho sombrio e a escuridão
+
+**Arte (desenho sombrio, provisório)**
+- Novo estilo inspirado em cenários desenhados e atmosféricos: cores
+  dessaturadas, névoa entre os planos, cordilheira distante, silhuetas com traço
+  fino e primeiro plano escuro. A cor vem das luzes (brilho suave em lote)
+- Cidade com torres, telhados pontudos e janelas em arco que brilham; nas
+  regiões mais sombrias, parte dos prédios está em ruínas
+- Postes com lampiões acesos, plataforma de pedra com lampiões, feixe do farol
+  em degradê e luz da fornalha saindo da cabine
+- Locomotiva e tender em ferro azulado com latão gasto
+- Temas revistos: Amanhecer cinzento (cinzas e brasas no ar), Primavera e
+  Verão mais vivos, Outono e Noite de inverno (azul-petróleo) mais sombrios
+- Chegada na estação: luzinhas subindo no lugar do confete
+
+**Removido**
+- Maquinista da cabine (personagens existirão, mas não nesse formato)
+
+**A escuridão**
+- Algo consome tudo atrás do trem: massa escura que respira na borda esquerda,
+  com tentáculos e pedaços do mundo sendo puxados para dentro
+- Avança ao acaso de vez em quando, chega mais perto com o trem parado e, ao
+  sair de uma estação, escurece a tela por alguns segundos. Nunca cobre o trem
+  e não muda a jogabilidade
+
+**HUD**
+- Mesmo layout, agora em ferro escuro, papel envelhecido e latão gasto; cada
+  estação do ano mantém sua cor de destaque
+
+**Desempenho**
+- Mesmo desempenho da 0.3.0 na mesma máquina (347 vs 352 FPS, dentro da
+  variação; 127 chamadas de desenho por quadro)
+
+## [0.3.0] — 2026-11-20 · Arte cartoon, HUD ferroviária, câmera e menu de opções
+
+**Arte (cartoon 2D desenhado à mão)**
+- Contornos fortes de tinta, silhuetas simples, sombras chapadas e brilhos em
+  todo o cenário: nuvens fofas, montanhas, colinas novas (profundidade), cidade,
+  árvores, campo, dormentes de madeira, trilho, postes, mato e clima
+- Paleta ferroviária antiga: vinho, madeira, carvão, metal, bronze, cobre,
+  ouro envelhecido e creme; temas do amanhecer e da noite de inverno mais claros
+- Locomotiva redesenhada (vinho com cintas de ouro, chaminé de funil, domos de
+  latão, rodas vermelhas com contrapeso, placa "1857") e tender de madeira com
+  brasão. Continuam sendo só a locomotiva e o tender
+- Maquinista original na janela da cabine, com expressões: normal (pisca),
+  feliz com a caldeira atiçada/estação, aflito (suor) em falhas; acena na estação
+- Plataforma da estação maior (cobre o trem inteiro), placa pendurada legível,
+  tranco de câmera nas falhas
+
+**Câmera**
+- Câmera bem mais afastada (zoom 0,58 do mundo): aparece muito mais trilho,
+  céu e campo; o trem fica à direita, com trilho livre atrás para vagões futuros
+
+**HUD**
+- Nova interface ferroviária: bilhete do estoque, placa da rota com as estações
+  e o trenzinho, placa de estado, painel com velocímetro e manômetro analógicos
+  (ponteiros com mola) e o botão grande "Atiçar a caldeira", armazém de madeira
+- Pele por estação do ano (uma só HUD): acento de cor, decoração dos painéis
+  (engrenagens, flores, sol, folhas, neve e pingentes de gelo) e carimbo do bilhete
+- Música, efeitos e "Parar nas estações" saíram da HUD
+
+**Menu de opções (ESC ou botão de engrenagem)**
+- Placa vinho pendurada por correntes, com chaves de alavanca animadas:
+  Música, Efeitos sonoros, Parada automática, Reiniciar partida (com
+  confirmação) e Voltar ao jogo
+- Pausa o jogo de verdade (a partida congela; a música continua) e salva ao abrir
+- Preferências persistem: áudio em `user://settings.cfg`; parada automática no
+  save, mantida ao reiniciar a partida
+
+**Desempenho**
+- Desenho em quads com uma textura compartilhada (círculo suavizado): mesmo com
+  a arte nova, 126 chamadas de desenho por quadro (antes 444) e ~2,3 ms por
+  quadro no desktop (antes ~2,5 ms)
+
 ## [0.2.0] — 2026-11-20 · Movimento com inércia, caldeira e estações
 
 **Removido**
