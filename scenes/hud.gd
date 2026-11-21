@@ -15,8 +15,6 @@ const SHOP_REFRESH_INTERVAL := 0.1
 
 @onready var _stock_label: Label = %StockLabel
 @onready var _production_label: Label = %ProductionLabel
-@onready var _tank_label: Label = %TankLabel
-@onready var _tank_bar: ProgressBar = %TankBar
 @onready var _state_label: Label = %StateLabel
 @onready var _speed_label: Label = %SpeedLabel
 @onready var _speed_hint: Label = %SpeedHint
@@ -58,11 +56,17 @@ var _component_rows: Dictionary = {}
 var _tab: String = "producao"
 ## Assinatura do conteúdo da loja: se mudar, a lista é reconstruída.
 var _shop_signature: String = ""
+## Barra de pressão da caldeira (criada em código, abaixo do botão de clique).
+var _stoke_bar: ProgressBar
+## Botão "Parar nas estações".
+var _stop_button: Button
+var _version_label: Label
+var _version_text: String = ""
+var _fps_timer: float = 0.0
 
 
 func _ready() -> void:
 	EventBus.stock_changed.connect(_on_stock_changed)
-	EventBus.tank_changed.connect(_on_tank_changed)
 	EventBus.shop_changed.connect(_on_shop_changed)
 	EventBus.train_state_changed.connect(_on_train_state_changed)
 	EventBus.speed_changed.connect(_on_speed_changed)
@@ -86,7 +90,10 @@ func _ready() -> void:
 	_refresh_sound_buttons()
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_offline_ok.pressed.connect(func(): _offline_popup.visible = false)
-	_speed_hint.text = "A velocidade vem da produção e dos reforços das peças: toda compra acelera o trem."
+	_speed_hint.text = "A velocidade vem da produção e dos reforços das peças. Clique para atiçar a caldeira: carvão e velocidade extra."
+	_build_stoke_bar()
+	_build_stop_button()
+	EventBus.stop_at_stations_changed.connect(_on_stop_at_stations_changed)
 	_message_label.text = ""
 	_add_version_label()
 
@@ -103,9 +110,8 @@ func _add_version_label() -> void:
 		info = head.trim_prefix("ref: refs/heads/") if head.begins_with("ref:") else head.left(7)
 	var version := str(ProjectSettings.get_setting("application/config/version", ""))
 	var label := Label.new()
-	label.text = ("v" + version if version else "") + ("  ·  " + info if info else "")
-	if label.text.is_empty():
-		return
+	_version_text = ("v" + version if version else "") + ("  ·  " + info if info else "")
+	label.text = _version_text
 	label.add_theme_font_size_override("font_size", 14)
 	label.add_theme_color_override("font_color", Color(C_CREAM, 0.75))
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
@@ -115,16 +121,25 @@ func _add_version_label() -> void:
 	label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	label.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	add_child(label)
+	_version_label = label
 
 
 func _process(delta: float) -> void:
+	# FPS no canto (fase de desenvolvimento), para medir desempenho.
+	if _version_label:
+		_fps_timer += delta
+		if _fps_timer >= 0.5:
+			_fps_timer = 0.0
+			_version_label.text = "%d FPS  ·  %s" % [Engine.get_frames_per_second(), _version_text]
 	_shop_timer += delta
 	if _shop_timer >= SHOP_REFRESH_INTERVAL:
 		_shop_timer = 0.0
 		_refresh_shop()
 		_production_label.text = "Produção: %s carvão/s" % NumFormat.rate(_state().total_production())
-		_click_button.text = "Gerar carvão (+%s)" % NumFormat.rate(_state().click_value())
+		_click_button.text = "Atiçar a caldeira (+%s carvão)" % NumFormat.rate(_state().click_value())
 		_refresh_maintenance_status()
+		_refresh_state_label()
+	_stoke_bar.value = _state().stoke * 100.0
 
 	if _message_timer > 0.0:
 		_message_timer -= delta
@@ -144,32 +159,79 @@ func _on_stock_changed(amount: float) -> void:
 	_stock_label.text = "Estoque: %s carvão" % NumFormat.amount(amount)
 
 
-func _on_tank_changed(current: float, capacity: float) -> void:
-	_tank_label.text = "Reservatório do trem: %s / %s (abastece do estoque)" % [NumFormat.amount(current), NumFormat.amount(capacity)]
-	_tank_bar.max_value = capacity
-	_tank_bar.value = current
+## Linha de estado: só aparece quando algo especial acontece.
+func _on_train_state_changed(_state_value: int) -> void:
+	_refresh_state_label()
 
 
-func _on_train_state_changed(state: int) -> void:
-	match state:
-		TrainMovement.State.CRUISING:
-			_state_label.text = "Trem: EM MOVIMENTO"
-			_state_label.modulate = Color(0.35, 0.85, 0.35)
-		TrainMovement.State.SLOW:
-			_state_label.text = "Trem: DEVAGAR (falta carvão no reservatório)"
-			_state_label.modulate = Color(0.95, 0.75, 0.3)
+func _refresh_state_label() -> void:
+	var s := _state()
+	var text := ""
+	var color := Color(1.0, 0.6, 0.3)
+	match s.train.state:
+		TrainMovement.State.BRAKING:
+			var c := s.component(s.maintenance.stop_component_id)
+			text = "Falha: %s! Freando..." % (c.display_name if c else "peça")
+			color = Color(1.0, 0.4, 0.3)
 		TrainMovement.State.MAINTENANCE:
-			_state_label.modulate = Color(1.0, 0.6, 0.3)
-			_refresh_maintenance_status()
-		_:
-			_state_label.text = "Trem: PARADO (reservatório vazio)"
-			_state_label.modulate = Color(0.9, 0.4, 0.3)
+			var c := s.component(s.maintenance.stop_component_id)
+			text = "Em manutenção (%s) — %d s" % [c.display_name if c else "peça", int(ceil(s.maintenance.stop_left))]
+		TrainMovement.State.APPROACHING:
+			text = "Chegando em %s..." % s.route.next_station_name()
+			color = Color(0.92, 0.72, 0.35)
+		TrainMovement.State.AT_STATION:
+			var index := s.route.reached_count - 1
+			text = "Parado em %s — partida em %d s" % [s.route.station_name(index), int(ceil(s.station_stop_left))]
+			color = Color(0.92, 0.72, 0.35)
+	_state_label.visible = not text.is_empty()
+	_state_label.text = text
+	_state_label.modulate = color
 
 
-func _on_speed_changed(speed_mps: float, _target_speed_mps: float, coal_per_second: float) -> void:
-	var bonus := _state().reinforce_speed_bonus()
-	var extra := " (+%d%% pelas peças)" % roundi(bonus * 100.0) if bonus > 0.0 else ""
-	_speed_label.text = "Velocidade: %s%s · consumo %s/s" % [NumFormat.speed(speed_mps), extra, NumFormat.rate(coal_per_second)]
+func _on_speed_changed(speed_mps: float, _target_speed_mps: float, _stoke: float) -> void:
+	var s := _state()
+	var extras := ""
+	var bonus := s.reinforce_speed_bonus()
+	if bonus > 0.0:
+		extras += " · +%d%% peças" % roundi(bonus * 100.0)
+	var stoke := s.stoke_bonus()
+	if stoke >= 0.005:
+		extras += " · +%d%% caldeira" % roundi(stoke * 100.0)
+	_speed_label.text = "Velocidade: %s%s" % [NumFormat.speed(speed_mps), extras]
+
+
+## Barra fina de pressão da caldeira logo abaixo do botão de clique.
+func _build_stoke_bar() -> void:
+	_stoke_bar = ProgressBar.new()
+	_stoke_bar.custom_minimum_size = Vector2(0, 8)
+	_stoke_bar.show_percentage = false
+	_stoke_bar.max_value = 100.0
+	_stoke_bar.tooltip_text = "Pressão da caldeira: cada clique aumenta; dá velocidade extra e baixa sozinha."
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.95, 0.45, 0.15)
+	fill.set_corner_radius_all(3)
+	_stoke_bar.add_theme_stylebox_override("fill", fill)
+	var parent := _click_button.get_parent()
+	parent.add_child(_stoke_bar)
+	parent.move_child(_stoke_bar, _click_button.get_index() + 1)
+
+
+## Botão para escolher se o trem para em cada estação (cutscene) ou passa direto.
+func _build_stop_button() -> void:
+	_stop_button = Button.new()
+	_stop_button.toggle_mode = true
+	_stop_button.focus_mode = Control.FOCUS_NONE
+	_stop_button.tooltip_text = "Ligado: o trem freia e para na plataforma de cada estação.
+Desligado: passa direto (a 1ª estação sempre para)."
+	_stop_button.toggled.connect(func(on: bool): _game.set_stop_at_stations(on))
+	var parent := _reset_button.get_parent()
+	parent.add_child(_stop_button)
+	parent.move_child(_stop_button, _reset_button.get_index())
+
+
+func _on_stop_at_stations_changed(enabled: bool) -> void:
+	_stop_button.set_pressed_no_signal(enabled)
+	_stop_button.text = "Parar nas estações: %s" % ("sim" if enabled else "não")
 
 
 func _on_distance_changed(distance_m: float) -> void:
@@ -655,11 +717,7 @@ func _refresh_maintenance_status() -> void:
 	var s := _state()
 	var m := s.maintenance
 	if m.is_stopped():
-		var c := s.component(m.stop_component_id)
-		var comp_name := c.display_name if c else "peça"
-		_state_label.text = "Trem: EM MANUTENÇÃO (%s) — %d s" % [comp_name, int(ceil(m.stop_left))]
-		_state_label.modulate = Color(1.0, 0.6, 0.3)
-		_maintenance_bar.visible = true
+		_maintenance_bar.visible = s.train.state == TrainMovement.State.MAINTENANCE
 		_maintenance_bar.max_value = maxf(m.stop_seconds(), m.stop_left)
 		_maintenance_bar.value = _maintenance_bar.max_value - m.stop_left
 	else:
@@ -674,7 +732,7 @@ func _refresh_maintenance_status() -> void:
 
 
 func _on_component_failed(_id: String, component_name: String) -> void:
-	_show_message("%s quebrou! Manutenção de %s." % [component_name, NumFormat.duration(_state().maintenance.stop_seconds())])
+	_show_message("%s quebrou! O trem vai parar para %s de manutenção." % [component_name, NumFormat.duration(_state().maintenance.stop_seconds())])
 	_refresh_maintenance_status()
 
 

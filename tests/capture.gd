@@ -1,0 +1,36 @@
+extends Node
+## Captura telas do jogo em alguns temas (comparação visual).
+## Rodar: godot --path . res://tests/capture.tscn -- <pasta_de_saida>
+
+const THEMES := [["inicio", -1], ["verao", 2], ["inverno", 4]]
+
+var _main: Node
+
+
+func _ready() -> void:
+	var out := "user://capturas"
+	var args := OS.get_cmdline_user_args()
+	if args.size() > 0:
+		out = args[0]
+	DirAccess.make_dir_recursive_absolute(out)
+	SaveManager.delete_save()
+	_main = load("res://scenes/main.tscn").instantiate()
+	add_child(_main)
+	await get_tree().process_frame
+	var game := _main.get_node("Game")
+	var view := _main.get_node("TrainView")
+	for t in THEMES:
+		var station: int = t[1]
+		if station >= 0:
+			game.state.train.distance_m = game.state.route.target_distance(station) + 10.0
+			game.state.route.update(game.state.train.distance_m)
+		game.state.station_stop_left = 0.0
+		game.state.train.current_speed = game.state.cruise_speed()
+		view._on_game_loaded()   # entra direto no tema, sem transição
+		for i in 90:
+			await get_tree().process_frame
+		var img := get_viewport().get_texture().get_image()
+		img.save_png(out.path_join("%s.png" % t[0]))
+		print("capturado: ", t[0])
+	SaveManager.delete_save()
+	get_tree().quit()

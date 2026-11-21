@@ -11,7 +11,6 @@ var state: GameState
 var _autosave_timer: float = 0.0
 var _last_emitted_distance: float = -1.0
 var _last_emitted_stock: float = -1.0
-var _last_emitted_tank: float = -1.0
 
 
 func _ready() -> void:
@@ -38,7 +37,12 @@ func _process(delta: float) -> void:
 		EventBus.component_repaired.emit(id, true)
 	if result["maintenance_done"]:
 		EventBus.maintenance_finished.emit()
-	EventBus.speed_changed.emit(state.train.current_speed, state.train.target_speed, state.train.consumption_per_second())
+	if result["station_stop"]:
+		var index := state.route.reached_count - 1
+		EventBus.station_stopped.emit(index, state.route.station_name(index))
+	if result["departed"]:
+		EventBus.station_departed.emit()
+	EventBus.speed_changed.emit(state.train.current_speed, state.train.target_speed, state.stoke)
 	if state.train.distance_m != _last_emitted_distance:
 		_last_emitted_distance = state.train.distance_m
 		EventBus.distance_changed.emit(state.train.distance_m)
@@ -108,6 +112,12 @@ func buy_auto_maintenance(id: String) -> bool:
 	return true
 
 
+func set_stop_at_stations(enabled: bool) -> void:
+	state.stop_at_stations = enabled
+	EventBus.stop_at_stations_changed.emit(enabled)
+	save_now()
+
+
 ## Apaga o save e recomeça (botão de teste na HUD).
 func reset_game() -> void:
 	SaveManager.delete_save()
@@ -152,9 +162,6 @@ func _emit_resources_if_changed() -> void:
 	if state.stock.amount != _last_emitted_stock:
 		_last_emitted_stock = state.stock.amount
 		EventBus.stock_changed.emit(state.stock.amount)
-	if state.tank.current != _last_emitted_tank:
-		_last_emitted_tank = state.tank.current
-		EventBus.tank_changed.emit(state.tank.current, state.tank.capacity)
 
 
 ## Emite todo o estado atual e avisa a interface para se sincronizar.
@@ -162,12 +169,12 @@ func _emit_resources_if_changed() -> void:
 ## EVENTO (mostram mensagem); a HUD lê o estado direto em game_loaded.
 func _announce_full_state(offline_summary: Dictionary) -> void:
 	_last_emitted_stock = -1.0
-	_last_emitted_tank = -1.0
 	_last_emitted_distance = state.train.distance_m
 	_emit_resources_if_changed()
 	EventBus.train_state_changed.emit(state.train.state)
-	EventBus.speed_changed.emit(state.train.current_speed, state.train.target_speed, state.train.consumption_per_second())
+	EventBus.speed_changed.emit(state.train.current_speed, state.train.target_speed, state.stoke)
 	EventBus.distance_changed.emit(state.train.distance_m)
+	EventBus.stop_at_stations_changed.emit(state.stop_at_stations)
 	EventBus.game_loaded.emit()
 	if not offline_summary.is_empty():
 		EventBus.offline_summary.emit(offline_summary)

@@ -76,19 +76,6 @@ autowrap_mode = 3
 theme_override_font_sizes/font_size = 16
 text = "Produção: 0 carvão/s"
 
-[node name="TankLabel" type="Label" parent="StatusPanel/Margin/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-autowrap_mode = 3
-theme_override_font_sizes/font_size = 13
-text = "Reservatório do trem: 0 / 0"
-
-[node name="TankBar" type="ProgressBar" parent="StatusPanel/Margin/VBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 10)
-layout_mode = 2
-show_percentage = false
-
 [node name="Sep2" type="HSeparator" parent="StatusPanel/Margin/VBox"]
 layout_mode = 2
 
@@ -96,8 +83,9 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 autowrap_mode = 3
+visible = false
 theme_override_font_sizes/font_size = 17
-text = "Trem: -"
+text = ""
 
 [node name="MaintenanceBar" type="ProgressBar" parent="StatusPanel/Margin/VBox"]
 unique_name_in_owner = true
