@@ -7,6 +7,8 @@ extends Node
 
 const SAVE_PATH := "user://save.json"
 const BACKUP_PATH := "user://save_backup_teste.json"
+const SETTINGS_PATH := "user://settings.cfg"
+const SETTINGS_BACKUP := "user://settings_backup_teste.cfg"
 
 var _fails := 0
 var _main: Node
@@ -48,11 +50,27 @@ func _game() -> GameController:
 	return _main.get_node("Game")
 
 
+func _menu() -> Node:
+	return _main.get_node("OptionsMenu")
+
+
+func _press_esc() -> void:
+	var ev := InputEventAction.new()
+	ev.action = "toggle_options"
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
 func _run() -> void:
 	print("== Teste da cena principal (Fase 1A + 1B) ==")
 	var had_save := FileAccess.file_exists(SAVE_PATH)
 	if had_save:
 		DirAccess.copy_absolute(ProjectSettings.globalize_path(SAVE_PATH), ProjectSettings.globalize_path(BACKUP_PATH))
+	var had_settings := FileAccess.file_exists(SETTINGS_PATH)
+	if had_settings:
+		DirAccess.copy_absolute(ProjectSettings.globalize_path(SETTINGS_PATH), ProjectSettings.globalize_path(SETTINGS_BACKUP))
 
 	var now := Time.get_unix_time_from_system()
 
@@ -80,7 +98,7 @@ func _run() -> void:
 	_check(g.state.train.state == TrainMovement.State.AT_STATION and g.state.station_stop_left > 0.0, "ao abrir, o trem está parado na plataforma da Primavera")
 	_check(hud.get_node("%StateLabel").visible and hud.get_node("%StateLabel").text.contains("Parado em Primavera"), "estado mostra a parada na estação")
 	g.set_stop_at_stations(false)
-	_check(not hud._stop_button.button_pressed and hud._stop_button.text.contains("não"), "botão Parar nas estações desliga")
+	_check(not _menu().get_node("%StopSwitch").on, "chave Parada automática do menu acompanha a preferência")
 	g.state.station_stop_left = 0.0
 	g.state.train.distance_m = g.state.route.target_distance(2) - 1.0
 	g.state.train.current_speed = g.state.cruise_speed()
@@ -199,8 +217,52 @@ func _run() -> void:
 	print("Save da Fase 0 e reinício")
 	_check(_game().state.producer("foguista").level == 4, "save da Fase 0 abre com o Foguista nv 4")
 	_check(not _hud().get_node("%OfflinePopup").visible, "save antigo sem horário não mostra resumo")
-	_hud().get_node("%ResetButton").pressed.emit()
+
+	# --- 5. Menu de opções (ESC) ---------------------------------------------
+	print("Menu de opções")
+	var menu := _menu()
+	var game := _game()
+	var audio2 := _main.get_node("AudioDirector")
+	_check(not _hud().has_node("%MusicButton") and not _hud().has_node("%SfxButton"), "controles de áudio saíram da HUD")
+	game.state.station_stop_left = 0.0
+	await get_tree().create_timer(0.2).timeout
+	await _press_esc()
+	_check(menu.is_open and menu.get_node("%Root").visible, "ESC abre o menu de opções")
+	_check(get_tree().paused, "menu pausa o jogo")
+	var dist_paused := game.state.train.distance_m
+	var stock_paused := game.state.stock.amount
+	await get_tree().create_timer(0.4).timeout
+	_check(game.state.train.distance_m == dist_paused and game.state.stock.amount == stock_paused, "com o menu aberto a partida não avança (%.2f m)" % dist_paused)
+	var music_before: bool = audio2.music_enabled
+	menu.get_node("%MusicSwitch").toggle()
+	_check(audio2.music_enabled == not music_before, "chave Música alterna a música")
+	var sfx_before: bool = audio2.sfx_enabled
+	menu.get_node("%SfxSwitch").toggle()
+	_check(audio2.sfx_enabled == not sfx_before, "chave Efeitos alterna os efeitos")
+	var stop_before: bool = game.state.stop_at_stations
+	menu.get_node("%StopSwitch").toggle()
+	_check(game.state.stop_at_stations == not stop_before, "chave Parada automática alterna a preferência")
+	await _press_esc()
+	_check(not menu.is_open and not get_tree().paused, "ESC fecha o menu e retoma o jogo")
+	await get_tree().create_timer(0.3).timeout
+	_check(game.state.train.distance_m > dist_paused, "depois de fechar, o trem volta a andar")
+	menu.open()
+	menu.get_node("%BackButton").pressed.emit()
+	_check(not menu.is_open and not get_tree().paused, "botão Voltar ao jogo fecha e retoma")
+	var stop_now: bool = game.state.stop_at_stations
+	# reabrir o jogo: tudo continua como o jogador deixou
+	await _open_game()
+	_check(_main.get_node("AudioDirector").music_enabled == not music_before and _main.get_node("AudioDirector").sfx_enabled == not sfx_before, "música e efeitos persistem ao reabrir o jogo")
+	_check(_game().state.stop_at_stations == stop_now and _menu().get_node("%StopSwitch").on == stop_now, "parada automática persiste ao reabrir o jogo")
+	# reiniciar partida pelo menu: pede confirmação e mantém as preferências
+	_menu().open()
+	_menu().get_node("%ResetButton").pressed.emit()
+	_check(_game().state.producer("foguista").level == 4, "1º clique em Reiniciar só pede confirmação")
+	_menu().get_node("%ResetButton").pressed.emit()
 	_check(_game().state.producer("foguista").level == 0 and _game().state.train.distance_m == 0.0, "reiniciar zera a partida")
+	_check(_game().state.stop_at_stations == stop_now, "reiniciar mantém a parada automática")
+	_check(not get_tree().paused and not _menu().is_open, "reiniciar fecha o menu e despausa")
+	_check(_hud().get_node("%MessageLabel").text.contains("reiniciada"), "aviso de partida reiniciada")
 
 	# Restaura o save original do jogador.
 	if had_save:
@@ -208,5 +270,10 @@ func _run() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(BACKUP_PATH))
 	elif FileAccess.file_exists(SAVE_PATH):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+	if had_settings:
+		DirAccess.copy_absolute(ProjectSettings.globalize_path(SETTINGS_BACKUP), ProjectSettings.globalize_path(SETTINGS_PATH))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SETTINGS_BACKUP))
+	elif FileAccess.file_exists(SETTINGS_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SETTINGS_PATH))
 	print("== %d falha(s) ==" % _fails)
 	get_tree().quit(1 if _fails > 0 else 0)

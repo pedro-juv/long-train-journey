@@ -1,231 +1,274 @@
 [gd_scene load_steps=4 format=3 uid="uid://c1hud0prototipo"]
 
 [ext_resource type="Script" path="res://scenes/hud.gd" id="1_hud"]
-
-[sub_resource type="StyleBoxFlat" id="Panel_solid"]
-bg_color = Color(0.11, 0.09, 0.08, 0.97)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0.62, 0.45, 0.18, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
-shadow_color = Color(0, 0, 0, 0.45)
-shadow_size = 6
-
-[sub_resource type="StyleBoxFlat" id="Banner"]
-bg_color = Color(0.08, 0.18, 0.18, 0.92)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0.85, 0.64, 0.27, 1)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
-content_margin_left = 28.0
-content_margin_top = 10.0
-content_margin_right = 28.0
-content_margin_bottom = 10.0
+[ext_resource type="Script" path="res://scenes/ui/route_strip.gd" id="2_route"]
+[ext_resource type="Script" path="res://scenes/ui/dial_gauge.gd" id="3_gauge"]
 
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_hud")
 
-[node name="StatusPanel" type="PanelContainer" parent="."]
-anchors_preset = 9
-anchor_bottom = 1.0
-offset_right = 360.0
-grow_vertical = 2
-theme_override_styles/panel = SubResource("Panel_solid")
+[node name="Ticket" type="PanelContainer" parent="."]
+offset_left = 16.0
+offset_top = 14.0
+offset_right = 330.0
+offset_bottom = 120.0
 
-[node name="Margin" type="MarginContainer" parent="StatusPanel"]
+[node name="Margin" type="MarginContainer" parent="Ticket"]
 layout_mode = 2
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 14
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 14
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 74
 
-[node name="VBox" type="VBoxContainer" parent="StatusPanel/Margin"]
+[node name="VBox" type="VBoxContainer" parent="Ticket/Margin"]
 layout_mode = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 0
 
-[node name="Title" type="Label" parent="StatusPanel/Margin/VBox"]
+[node name="TicketTitle" type="Label" parent="Ticket/Margin/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.92, 0.72, 0.35, 1)
-theme_override_font_sizes/font_size = 22
-text = "IDLE TRAIN"
+theme_override_font_sizes/font_size = 12
+text = "BILHETE DE CARVÃO  ·  ESTOQUE"
 
-[node name="Sep1" type="HSeparator" parent="StatusPanel/Margin/VBox"]
-layout_mode = 2
-
-[node name="StockLabel" type="Label" parent="StatusPanel/Margin/VBox"]
+[node name="StockLabel" type="Label" parent="Ticket/Margin/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-autowrap_mode = 3
-theme_override_font_sizes/font_size = 22
-text = "Estoque: 0"
+theme_override_font_sizes/font_size = 30
+text = "0 carvão"
 
-[node name="ProductionLabel" type="Label" parent="StatusPanel/Margin/VBox"]
+[node name="ProductionLabel" type="Label" parent="Ticket/Margin/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-autowrap_mode = 3
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 15
 text = "Produção: 0 carvão/s"
 
-[node name="Sep2" type="HSeparator" parent="StatusPanel/Margin/VBox"]
+[node name="RoutePlate" type="PanelContainer" parent="."]
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 346.0
+offset_top = 12.0
+offset_right = -436.0
+offset_bottom = 104.0
+grow_horizontal = 2
+
+[node name="VBox" type="VBoxContainer" parent="RoutePlate"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Row" type="HBoxContainer" parent="RoutePlate/VBox"]
 layout_mode = 2
 
-[node name="StateLabel" type="Label" parent="StatusPanel/Margin/VBox"]
+[node name="StationLabel" type="Label" parent="RoutePlate/VBox/Row"]
 unique_name_in_owner = true
 layout_mode = 2
-autowrap_mode = 3
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 15
+text = "Próxima estação"
+clip_text = true
+
+[node name="DistanceLabel" type="Label" parent="RoutePlate/VBox/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "0 m"
+horizontal_alignment = 2
+
+[node name="RouteStrip" type="Control" parent="RoutePlate/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+script = ExtResource("2_route")
+
+[node name="StateArea" type="VBoxContainer" parent="."]
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 346.0
+offset_top = 116.0
+offset_right = -436.0
+offset_bottom = 200.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="StatePlate" type="PanelContainer" parent="StateArea"]
+unique_name_in_owner = true
 visible = false
-theme_override_font_sizes/font_size = 17
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+
+[node name="VBox" type="VBoxContainer" parent="StateArea/StatePlate"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="StateLabel" type="Label" parent="StateArea/StatePlate/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
 text = ""
+horizontal_alignment = 1
 
-[node name="MaintenanceBar" type="ProgressBar" parent="StatusPanel/Margin/VBox"]
+[node name="MaintenanceBar" type="ProgressBar" parent="StateArea/StatePlate/VBox"]
 unique_name_in_owner = true
 visible = false
-custom_minimum_size = Vector2(0, 8)
+custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
 show_percentage = false
 
-[node name="WarningLabel" type="Label" parent="StatusPanel/Margin/VBox"]
+[node name="WarningPlate" type="PanelContainer" parent="StateArea"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.55, 0.35, 1)
+size_flags_horizontal = 4
+mouse_filter = 2
+
+[node name="WarningLabel" type="Label" parent="StateArea/WarningPlate"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = ""
+horizontal_alignment = 1
+
+[node name="Dashboard" type="PanelContainer" parent="."]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -172.0
+offset_right = 596.0
+offset_bottom = -16.0
+grow_vertical = 0
+
+[node name="HBox" type="HBoxContainer" parent="Dashboard"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SpeedGauge" type="Control" parent="Dashboard/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(124, 124)
+layout_mode = 2
+size_flags_vertical = 4
+script = ExtResource("3_gauge")
+
+[node name="PressureGauge" type="Control" parent="Dashboard/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(124, 124)
+layout_mode = 2
+size_flags_vertical = 4
+script = ExtResource("3_gauge")
+
+[node name="Controls" type="VBoxContainer" parent="Dashboard/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="SpeedLabel" type="Label" parent="Dashboard/HBox/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Velocidade: 0 m/s"
+clip_text = true
+
+[node name="ClickButton" type="Button" parent="Dashboard/HBox/Controls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 19
+text = "Atiçar a caldeira"
+autowrap_mode = 3
+
+[node name="SpeedHint" type="Label" parent="Dashboard/HBox/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Clique: carvão + pressão na caldeira"
+autowrap_mode = 3
+
+[node name="Toast" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 612.0
+offset_top = -96.0
+offset_right = -366.0
+offset_bottom = -16.0
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="MessageLabel" type="Label" parent="Toast"]
+unique_name_in_owner = true
+layout_mode = 2
 theme_override_font_sizes/font_size = 14
 text = ""
 autowrap_mode = 3
 
-[node name="SpeedLabel" type="Label" parent="StatusPanel/Margin/VBox"]
+[node name="OptionsButton" type="Button" parent="."]
 unique_name_in_owner = true
-layout_mode = 2
-autowrap_mode = 3
-text = "Velocidade: 0 m/s"
-
-[node name="SpeedHint" type="Label" parent="StatusPanel/Margin/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.72, 0.72, 0.72, 1)
-theme_override_font_sizes/font_size = 12
-text = "Mais produção = trem mais rápido."
-autowrap_mode = 3
-
-[node name="DistanceLabel" type="Label" parent="StatusPanel/Margin/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-autowrap_mode = 3
-text = "Distância: 0 m"
-
-[node name="StationLabel" type="Label" parent="StatusPanel/Margin/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Próxima estação"
-autowrap_mode = 3
-
-[node name="StationBar" type="ProgressBar" parent="StatusPanel/Margin/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="Sep3" type="HSeparator" parent="StatusPanel/Margin/VBox"]
-layout_mode = 2
-
-[node name="ClickButton" type="Button" parent="StatusPanel/Margin/VBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 56)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Gerar carvão"
-
-[node name="Spacer" type="Control" parent="StatusPanel/Margin/VBox"]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="MessageLabel" type="Label" parent="StatusPanel/Margin/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.4, 1)
-text = ""
-autowrap_mode = 3
-
-[node name="SoundRow" type="HBoxContainer" parent="StatusPanel/Margin/VBox"]
-layout_mode = 2
-
-[node name="MusicButton" type="Button" parent="StatusPanel/Margin/VBox/SoundRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Música: ligada"
-
-[node name="SfxButton" type="Button" parent="StatusPanel/Margin/VBox/SoundRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Efeitos: ligados"
-
-[node name="ResetButton" type="Button" parent="StatusPanel/Margin/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Reiniciar partida (apaga o save)"
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -420.0
+offset_top = 14.0
+offset_right = -364.0
+offset_bottom = 70.0
+grow_horizontal = 0
+focus_mode = 0
+tooltip_text = "Opções (ESC): áudio e parada automática"
 
 [node name="ShopPanel" type="PanelContainer" parent="."]
 anchors_preset = 11
 anchor_left = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -360.0
+offset_left = -350.0
+offset_top = 14.0
+offset_right = -14.0
+offset_bottom = -30.0
 grow_horizontal = 0
 grow_vertical = 2
-theme_override_styles/panel = SubResource("Panel_solid")
 
-[node name="Margin" type="MarginContainer" parent="ShopPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 14
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 14
-
-[node name="VBox" type="VBoxContainer" parent="ShopPanel/Margin"]
+[node name="VBox" type="VBoxContainer" parent="ShopPanel"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="ShopTitle" type="Label" parent="ShopPanel/Margin/VBox"]
+[node name="ShopTitle" type="Label" parent="ShopPanel/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Loja"
+text = "ARMAZÉM DA ESTAÇÃO"
+horizontal_alignment = 1
 
-[node name="ShopTabs" type="HBoxContainer" parent="ShopPanel/Margin/VBox"]
+[node name="ShopTabs" type="HBoxContainer" parent="ShopPanel/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="ProductionTab" type="Button" parent="ShopPanel/Margin/VBox/ShopTabs"]
+[node name="ProductionTab" type="Button" parent="ShopPanel/VBox/ShopTabs"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+focus_mode = 0
 toggle_mode = true
 button_pressed = true
 text = "Produção"
 
-[node name="TrainTab" type="Button" parent="ShopPanel/Margin/VBox/ShopTabs"]
+[node name="TrainTab" type="Button" parent="ShopPanel/VBox/ShopTabs"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 size_flags_horizontal = 3
+focus_mode = 0
 toggle_mode = true
 text = "Trem"
 
-[node name="Scroll" type="ScrollContainer" parent="ShopPanel/Margin/VBox"]
+[node name="Scroll" type="ScrollContainer" parent="ShopPanel/VBox"]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="ShopList" type="VBoxContainer" parent="ShopPanel/Margin/VBox/Scroll"]
+[node name="ShopList" type="VBoxContainer" parent="ShopPanel/VBox/Scroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -234,22 +277,19 @@ theme_override_constants/separation = 8
 [node name="StationBanner" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 visible = false
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -200.0
-offset_top = 24.0
-offset_right = 200.0
-offset_bottom = 104.0
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 346.0
+offset_top = 200.0
+offset_right = -436.0
+offset_bottom = 280.0
 grow_horizontal = 2
 mouse_filter = 2
-theme_override_styles/panel = SubResource("Banner")
 
 [node name="BannerText" type="Label" parent="StationBanner"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.78, 0.4, 1)
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 30
 text = "Estação"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -271,20 +311,19 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -230.0
-offset_top = -120.0
-offset_right = 230.0
-offset_bottom = 120.0
+offset_left = -250.0
+offset_top = -140.0
+offset_right = 250.0
+offset_bottom = 140.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("Panel_solid")
 
 [node name="Margin" type="MarginContainer" parent="OfflinePopup"]
 layout_mode = 2
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 18
-theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 18
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 6
 
 [node name="VBox" type="VBoxContainer" parent="OfflinePopup/Margin"]
 layout_mode = 2
@@ -292,8 +331,8 @@ theme_override_constants/separation = 12
 
 [node name="OfflineTitle" type="Label" parent="OfflinePopup/Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Enquanto você esteve fora"
+theme_override_font_sizes/font_size = 22
+text = "TELEGRAMA · Enquanto você esteve fora"
 
 [node name="OfflineText" type="Label" parent="OfflinePopup/Margin/VBox"]
 unique_name_in_owner = true
@@ -304,6 +343,7 @@ autowrap_mode = 3
 
 [node name="OfflineOk" type="Button" parent="OfflinePopup/Margin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 40)
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
+focus_mode = 0
 text = "Continuar viagem"

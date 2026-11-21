@@ -4,6 +4,7 @@ extends Node
 ## Escuta o EventBus e as baforadas do TrainView; não conhece regras de jogo.
 ## As preferências (música e efeitos ligados/desligados) ficam em
 ## user://settings.cfg, separadas do save da partida.
+## Roda também com o jogo pausado (menu de opções): a música não para.
 ##
 ## Todos os sons são originais, sintetizados pelos scripts em tools/audio/.
 
@@ -88,6 +89,11 @@ func set_music_enabled(enabled: bool) -> void:
 func set_sfx_enabled(enabled: bool) -> void:
 	sfx_enabled = enabled
 	_save_settings()
+
+
+## Clique de interface (menu de opções); respeita "Efeitos" desligado.
+func play_ui_click() -> void:
+	_play("click", 1.25)
 
 
 # ---------------------------------------------------------------------------

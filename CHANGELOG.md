@@ -7,6 +7,47 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.3.0] — 2026-11-20 · Arte cartoon, HUD ferroviária, câmera e menu de opções
+
+**Arte (cartoon 2D desenhado à mão)**
+- Contornos fortes de tinta, silhuetas simples, sombras chapadas e brilhos em
+  todo o cenário: nuvens fofas, montanhas, colinas novas (profundidade), cidade,
+  árvores, campo, dormentes de madeira, trilho, postes, mato e clima
+- Paleta ferroviária antiga: vinho, madeira, carvão, metal, bronze, cobre,
+  ouro envelhecido e creme; temas do amanhecer e da noite de inverno mais claros
+- Locomotiva redesenhada (vinho com cintas de ouro, chaminé de funil, domos de
+  latão, rodas vermelhas com contrapeso, placa "1857") e tender de madeira com
+  brasão. Continuam sendo só a locomotiva e o tender
+- Maquinista original na janela da cabine, com expressões: normal (pisca),
+  feliz com a caldeira atiçada/estação, aflito (suor) em falhas; acena na estação
+- Plataforma da estação maior (cobre o trem inteiro), placa pendurada legível,
+  tranco de câmera nas falhas
+
+**Câmera**
+- Câmera bem mais afastada (zoom 0,58 do mundo): aparece muito mais trilho,
+  céu e campo; o trem fica à direita, com trilho livre atrás para vagões futuros
+
+**HUD**
+- Nova interface ferroviária: bilhete do estoque, placa da rota com as estações
+  e o trenzinho, placa de estado, painel com velocímetro e manômetro analógicos
+  (ponteiros com mola) e o botão grande "Atiçar a caldeira", armazém de madeira
+- Pele por estação do ano (uma só HUD): acento de cor, decoração dos painéis
+  (engrenagens, flores, sol, folhas, neve e pingentes de gelo) e carimbo do bilhete
+- Música, efeitos e "Parar nas estações" saíram da HUD
+
+**Menu de opções (ESC ou botão de engrenagem)**
+- Placa vinho pendurada por correntes, com chaves de alavanca animadas:
+  Música, Efeitos sonoros, Parada automática, Reiniciar partida (com
+  confirmação) e Voltar ao jogo
+- Pausa o jogo de verdade (a partida congela; a música continua) e salva ao abrir
+- Preferências persistem: áudio em `user://settings.cfg`; parada automática no
+  save, mantida ao reiniciar a partida
+
+**Desempenho**
+- Desenho em quads com uma textura compartilhada (círculo suavizado): mesmo com
+  a arte nova, 126 chamadas de desenho por quadro (antes 444) e ~2,3 ms por
+  quadro no desktop (antes ~2,5 ms)
+
 ## [0.2.0] — 2026-11-20 · Movimento com inércia, caldeira e estações
 
 **Removido**
