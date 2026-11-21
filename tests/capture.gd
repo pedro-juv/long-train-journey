@@ -32,7 +32,7 @@ func _ready() -> void:
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(out.path_join("%s.png" % t[0]))
 		print("capturado: ", t[0])
-	# parada na estação: plataforma, placa e maquinista acenando
+	# parada na estação: plataforma, placa e lampiões
 	view._station_signs.append({"x": view._platform_stop_x(), "name": "Primavera"})
 	view._on_train_state_changed(TrainMovement.State.AT_STATION)
 	view._on_speed_changed(0.0, 0.0, 0.0)
@@ -41,6 +41,13 @@ func _ready() -> void:
 		await get_tree().process_frame
 	get_viewport().get_texture().get_image().save_png(out.path_join("estacao.png"))
 	print("capturado: estacao")
+	# saindo da estação: a escuridão alcança a tela por um instante
+	view._dark_depart = 0.75
+	view._dark_surge = 0.6
+	for i in 6:
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(out.path_join("partida.png"))
+	print("capturado: partida")
 	game.set_process(true)
 	# menu de opções aberto (jogo pausado)
 	_main.get_node("OptionsMenu").open()

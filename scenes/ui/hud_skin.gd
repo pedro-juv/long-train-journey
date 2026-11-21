@@ -6,17 +6,19 @@ extends RefCounted
 ## nos painéis (engrenagens, flores, sol, folhas, geada). Usado pela HUD e pelo
 ## menu de opções. Só apresentação.
 
-const INK := Color(0.13, 0.07, 0.07)
-const CREAM := Color(0.98, 0.92, 0.78)
-const CREAM_DARK := Color(0.86, 0.76, 0.58)
-const WOOD := Color(0.42, 0.26, 0.14)
-const WOOD_LIGHT := Color(0.58, 0.37, 0.20)
-const WINE := Color(0.52, 0.11, 0.14)
-const WINE_LIGHT := Color(0.74, 0.22, 0.22)
-const BRASS := Color(0.92, 0.70, 0.30)
-const BRASS_DARK := Color(0.62, 0.43, 0.17)
-const CHARCOAL := Color(0.17, 0.15, 0.16)
-const METAL := Color(0.60, 0.59, 0.58)
+# Paleta "desenho sombrio": ferro azulado, papel envelhecido e latão gasto.
+# As luzes (acento de cada estação) são o que dá cor à interface.
+const INK := Color(0.04, 0.05, 0.07)
+const CREAM := Color(0.88, 0.85, 0.76)
+const CREAM_DARK := Color(0.66, 0.63, 0.55)
+const WOOD := Color(0.13, 0.15, 0.18)
+const WOOD_LIGHT := Color(0.22, 0.26, 0.30)
+const WINE := Color(0.12, 0.17, 0.20)
+const WINE_LIGHT := Color(0.30, 0.37, 0.42)
+const BRASS := Color(0.80, 0.66, 0.40)
+const BRASS_DARK := Color(0.50, 0.40, 0.24)
+const CHARCOAL := Color(0.07, 0.08, 0.10)
+const METAL := Color(0.55, 0.58, 0.62)
 
 ## Peles por tema de região (scenes/season_themes.gd).
 ##   accent  cor de destaque (bordas internas, barras, abas)
@@ -24,11 +26,11 @@ const METAL := Color(0.60, 0.59, 0.58)
 ##   deco    decoração desenhada nos cantos
 ##   stamp   texto do carimbo no bilhete
 const SKINS := {
-	"inicio": {"accent": Color(0.92, 0.70, 0.30), "panel": Color(0.40, 0.25, 0.14), "deco": "gears", "stamp": "PARTIDA"},
-	"primavera": {"accent": Color(0.55, 0.82, 0.38), "panel": Color(0.38, 0.26, 0.15), "deco": "flowers", "stamp": "PRIMAVERA"},
-	"verao": {"accent": Color(1.0, 0.74, 0.22), "panel": Color(0.45, 0.27, 0.13), "deco": "sun", "stamp": "VERÃO"},
-	"outono": {"accent": Color(0.97, 0.52, 0.18), "panel": Color(0.41, 0.21, 0.12), "deco": "leaves", "stamp": "OUTONO"},
-	"inverno": {"accent": Color(0.66, 0.86, 1.0), "panel": Color(0.30, 0.25, 0.27), "deco": "frost", "stamp": "INVERNO"},
+	"inicio": {"accent": Color(0.90, 0.68, 0.38), "panel": Color(0.11, 0.12, 0.15), "deco": "gears", "stamp": "PARTIDA"},
+	"primavera": {"accent": Color(0.62, 0.84, 0.56), "panel": Color(0.12, 0.16, 0.16), "deco": "flowers", "stamp": "PRIMAVERA"},
+	"verao": {"accent": Color(0.95, 0.78, 0.40), "panel": Color(0.15, 0.15, 0.14), "deco": "sun", "stamp": "VERÃO"},
+	"outono": {"accent": Color(0.92, 0.54, 0.30), "panel": Color(0.15, 0.11, 0.11), "deco": "leaves", "stamp": "OUTONO"},
+	"inverno": {"accent": Color(0.56, 0.88, 0.90), "panel": Color(0.07, 0.12, 0.15), "deco": "frost", "stamp": "INVERNO"},
 }
 
 
@@ -94,13 +96,13 @@ static func make_theme(theme_id: String) -> Theme:
 	t.set_stylebox("hover", "Button", button_style(WOOD_LIGHT.lightened(0.12)))
 	t.set_stylebox("pressed", "Button", button_style(accent.darkened(0.15), true))
 	t.set_stylebox("hover_pressed", "Button", button_style(accent, true))
-	t.set_stylebox("disabled", "Button", button_style(Color(0.36, 0.31, 0.28)))
+	t.set_stylebox("disabled", "Button", button_style(Color(0.19, 0.20, 0.23)))
 	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
 	t.set_color("font_color", "Button", CREAM)
 	t.set_color("font_hover_color", "Button", Color(1.0, 0.96, 0.84))
 	t.set_color("font_pressed_color", "Button", INK)
 	t.set_color("font_hover_pressed_color", "Button", INK)
-	t.set_color("font_disabled_color", "Button", Color(0.66, 0.60, 0.54))
+	t.set_color("font_disabled_color", "Button", Color(0.52, 0.54, 0.56))
 	t.set_color("font_outline_color", "Button", INK)
 	t.set_constant("outline_size", "Button", 3)
 	var bar_bg := box(Color(0.10, 0.07, 0.06), INK, 2, 6, 0.0)
@@ -146,23 +148,34 @@ static func round_rect_points(r: Rect2, rad: float) -> PackedVector2Array:
 # ---------------------------------------------------------------------------
 
 static var _dot: ImageTexture
-static var UV_FULL := PackedVector2Array([Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)])
-static var UV_FILL := PackedVector2Array([Vector2(0.5, 0.5), Vector2(0.5, 0.5), Vector2(0.5, 0.5), Vector2(0.5, 0.5)])
+## A textura tem duas metades: à esquerda o círculo de borda nítida (formas),
+## à direita um brilho radial suave (luzes, névoa). Uma textura só = um lote só.
+static var UV_FULL := PackedVector2Array([Vector2(0, 0), Vector2(0.5, 0), Vector2(0.5, 1), Vector2(0, 1)])
+static var UV_FILL := PackedVector2Array([Vector2(0.25, 0.5), Vector2(0.25, 0.5), Vector2(0.25, 0.5), Vector2(0.25, 0.5)])
+static var UV_GLOW := PackedVector2Array([Vector2(0.5, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0.5, 1)])
 
 
-## Círculo branco suavizado (128 px, com mipmaps), gerado uma vez e compartilhado.
+## Círculo suavizado + brilho (256x128 px, com mipmaps), gerado uma vez e compartilhado.
 static func dot_texture() -> Texture2D:
 	if _dot == null:
 		var n := 128
-		var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+		var img := Image.create(n * 2, n, false, Image.FORMAT_RGBA8)
 		var half := n / 2.0
 		for y in n:
 			for x in n:
 				var d := Vector2(x + 0.5 - half, y + 0.5 - half).length()
 				img.set_pixel(x, y, Color(1, 1, 1, clampf(half - 1.0 - d, 0.0, 1.0)))
+				var g := clampf(1.0 - d / (half - 1.0), 0.0, 1.0)
+				img.set_pixel(n + x, y, Color(1, 1, 1, g * g * (3.0 - 2.0 * g)))
 		img.generate_mipmaps()
 		_dot = ImageTexture.create_from_image(img)
 	return _dot
+
+
+## Brilho suave (halo de luz): some aos poucos até a borda.
+static func glow(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
+	ci.draw_primitive(PackedVector2Array([c + Vector2(-r, -r), c + Vector2(r, -r), c + Vector2(r, r), c + Vector2(-r, r)]),
+		PackedColorArray([col, col, col, col]), UV_GLOW, dot_texture())
 
 
 static func quad(ci: CanvasItem, p: PackedVector2Array, col: Color) -> void:

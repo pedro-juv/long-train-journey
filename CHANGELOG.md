@@ -7,6 +7,39 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.4.0] — 2026-11-20 · Desenho sombrio e a escuridão
+
+**Arte (desenho sombrio, provisório)**
+- Novo estilo inspirado em cenários desenhados e atmosféricos: cores
+  dessaturadas, névoa entre os planos, cordilheira distante, silhuetas com traço
+  fino e primeiro plano escuro. A cor vem das luzes (brilho suave em lote)
+- Cidade com torres, telhados pontudos e janelas em arco que brilham; nas
+  regiões mais sombrias, parte dos prédios está em ruínas
+- Postes com lampiões acesos, plataforma de pedra com lampiões, feixe do farol
+  em degradê e luz da fornalha saindo da cabine
+- Locomotiva e tender em ferro azulado com latão gasto
+- Temas revistos: Amanhecer cinzento (cinzas e brasas no ar), Primavera e
+  Verão mais vivos, Outono e Noite de inverno (azul-petróleo) mais sombrios
+- Chegada na estação: luzinhas subindo no lugar do confete
+
+**Removido**
+- Maquinista da cabine (personagens existirão, mas não nesse formato)
+
+**A escuridão**
+- Algo consome tudo atrás do trem: massa escura que respira na borda esquerda,
+  com tentáculos e pedaços do mundo sendo puxados para dentro
+- Avança ao acaso de vez em quando, chega mais perto com o trem parado e, ao
+  sair de uma estação, escurece a tela por alguns segundos. Nunca cobre o trem
+  e não muda a jogabilidade
+
+**HUD**
+- Mesmo layout, agora em ferro escuro, papel envelhecido e latão gasto; cada
+  estação do ano mantém sua cor de destaque
+
+**Desempenho**
+- Mesmo desempenho da 0.3.0 na mesma máquina (347 vs 352 FPS, dentro da
+  variação; 127 chamadas de desenho por quadro)
+
 ## [0.3.0] — 2026-11-20 · Arte cartoon, HUD ferroviária, câmera e menu de opções
 
 **Arte (cartoon 2D desenhado à mão)**

@@ -83,25 +83,30 @@ const THEME_BLEND_SECONDS := 5.0
 @export var full_effect_speed: float = 40.0
 
 # Paleta (ferrovia antiga, cartoon)
-const INK := Color(0.13, 0.07, 0.07)
-const INK_W := 3.5
-const WINE := Color(0.58, 0.13, 0.16)
-const WINE_DARK := Color(0.38, 0.07, 0.10)
-const WINE_LIGHT := Color(0.76, 0.26, 0.25)
-const WOOD := Color(0.58, 0.36, 0.19)
-const WOOD_DARK := Color(0.40, 0.23, 0.12)
-const CHARCOAL := Color(0.18, 0.16, 0.17)
-const CHARCOAL_LIGHT := Color(0.32, 0.30, 0.31)
-const METAL := Color(0.62, 0.61, 0.60)
-const BRASS := Color(0.92, 0.70, 0.30)       # ouro envelhecido
-const BRASS_DARK := Color(0.64, 0.44, 0.17)
-const COPPER := Color(0.82, 0.46, 0.24)
-const BRONZE := Color(0.68, 0.47, 0.25)
-const CREAM := Color(0.98, 0.92, 0.78)
-const WARM_LIGHT := Color(1.0, 0.80, 0.40)
-const SKIN := Color(0.98, 0.77, 0.60)
-const OVERALL := Color(0.26, 0.32, 0.46)
-const CONFETTI := [Color(0.92, 0.70, 0.30), Color(0.76, 0.26, 0.25), Color(0.98, 0.92, 0.78), Color(0.30, 0.66, 0.62), Color(0.95, 0.52, 0.20)]
+# Paleta "desenho sombrio": ferro azulado, madeira gasta e latão sem brilho.
+# A cor vem das luzes (fornalha, farol, janelas, lampiões).
+const INK := Color(0.04, 0.05, 0.07)
+const INK_W := 2.6
+const WINE := Color(0.20, 0.25, 0.30)        # ferro azulado (corpo do trem)
+const WINE_DARK := Color(0.11, 0.14, 0.18)
+const WINE_LIGHT := Color(0.33, 0.40, 0.45)
+const WOOD := Color(0.30, 0.24, 0.20)
+const WOOD_DARK := Color(0.19, 0.15, 0.13)
+const CHARCOAL := Color(0.09, 0.10, 0.12)
+const CHARCOAL_LIGHT := Color(0.20, 0.22, 0.25)
+const METAL := Color(0.52, 0.56, 0.60)
+const BRASS := Color(0.74, 0.60, 0.36)       # latão gasto
+const BRASS_DARK := Color(0.46, 0.37, 0.22)
+const COPPER := Color(0.55, 0.40, 0.30)
+const BRONZE := Color(0.45, 0.38, 0.30)
+const CREAM := Color(0.86, 0.84, 0.76)
+const WARM_LIGHT := Color(1.0, 0.78, 0.42)
+const STONE := Color(0.30, 0.31, 0.34)
+## Luzinhas que sobem na chegada à estação.
+const MOTES := [Color(1.0, 0.78, 0.42), Color(1.0, 0.90, 0.70), Color(0.70, 0.95, 0.92)]
+## A escuridão que vem consumindo tudo atrás do trem.
+const DARK := Color(0.015, 0.015, 0.03)
+const DARK_RIM := Color(0.10, 0.08, 0.16)
 
 var _speed_mps: float = 0.0
 var _speed_ratio: float = 0.0
@@ -134,6 +139,7 @@ var _weather: Array[Dictionary] = []
 var _dots: Array[Vector3] = []
 
 var _mountain_points: PackedVector2Array
+var _far_points: PackedVector2Array
 var _hill_points: PackedVector2Array
 var _buildings: Array[Dictionary] = []
 var _tufts: Array[Vector2] = []
@@ -157,6 +163,14 @@ var _approach_sign: Dictionary = {}
 var _approach_start_m: float = 0.0
 ## Tremor da câmera (falha de peça, frenagem forte).
 var _shake: float = 0.0
+
+## Escuridão na borda esquerda: avanço aleatório (_dark_surge), avanço enquanto
+## o trem está parado (_dark_creep) e o escurecimento ao sair da estação.
+var _dark_surge: float = 0.0
+var _dark_surge_target: float = 0.0
+var _dark_timer: float = 4.0
+var _dark_creep: float = 0.0
+var _dark_depart: float = 0.0
 
 var _rng := RandomNumberGenerator.new()
 var _font: Font
@@ -223,19 +237,23 @@ func _on_station_reached(index: int, station_name: String) -> void:
 		theme_changed.emit(_theme_id)
 	if _approach_sign.is_empty() or _approach_sign["name"] != station_name:
 		_station_signs.append({"x": _size.x + 40.0, "name": station_name})
-	for i in 90:
+	# luzinhas subindo da plataforma (alívio de chegar)
+	for i in 60:
 		_celebration.append({
-			"pos": Vector2(LOCO_X + 120.0, GROUND_Y - 300.0),
-			"vel": Vector2(_rng.randf_range(-380, 380), _rng.randf_range(-620, -180)),
-			"rot": _rng.randf_range(0, TAU), "spin": _rng.randf_range(-9, 9),
-			"life": _rng.randf_range(1.8, 2.8), "size": _rng.randf_range(6, 13),
-			"gear": _rng.randf() < 0.35, "color": _rng.randi_range(0, CONFETTI.size() - 1),
+			"pos": Vector2(LOCO_X + _rng.randf_range(-320, 420), GROUND_Y - _rng.randf_range(20, 160)),
+			"vel": Vector2(_rng.randf_range(-40, 40), _rng.randf_range(-120, -40)),
+			"rot": _rng.randf_range(0, TAU), "spin": _rng.randf_range(1.5, 4.0),
+			"life": _rng.randf_range(2.2, 3.6), "size": _rng.randf_range(2.5, 6.0),
+			"color": _rng.randi_range(0, MOTES.size() - 1),
 		})
 
 
 func _on_train_state_changed(st: int) -> void:
 	var previous := _train_state
 	_train_state = st
+	# saindo da estação: a escuridão alcança o trem por um instante
+	if previous == TrainMovement.State.AT_STATION and st != TrainMovement.State.AT_STATION:
+		_dark_depart = 1.0
 	_in_maintenance = st == TrainMovement.State.MAINTENANCE or st == TrainMovement.State.BRAKING
 	if not _in_maintenance:
 		_failed_id = ""
@@ -356,8 +374,26 @@ func _process(delta: float) -> void:
 	_emit_wear_effects(delta)
 	_emit_state_effects(delta)
 
+	_update_darkness(delta)
 	_update_particles(delta, scroll)
 	_update_layers(delta)
+
+
+## A escuridão respira na borda; de vez em quando avança um pouco (aleatório),
+## chega mais perto quando o trem para e escurece a tela ao sair da estação.
+func _update_darkness(delta: float) -> void:
+	_dark_timer -= delta
+	if _dark_timer <= 0.0:
+		if _dark_surge_target > 0.0:
+			_dark_surge_target = 0.0
+			_dark_timer = _rng.randf_range(6.0, 16.0)
+		else:
+			_dark_surge_target = _rng.randf_range(0.35, 1.0)
+			_dark_timer = _rng.randf_range(1.8, 4.0)
+	_dark_surge = move_toward(_dark_surge, _dark_surge_target, delta * 0.6)
+	var stopped := 1.0 if _speed_mps < 1.0 else 0.0
+	_dark_creep = move_toward(_dark_creep, stopped, delta * (0.12 if stopped > 0.0 else 0.35))
+	_dark_depart = maxf(0.0, _dark_depart - delta / 6.0)
 
 
 ## Efeitos de frenagem, falha e caldeira atiçada.
@@ -446,9 +482,8 @@ func _update_particles(delta: float, scroll: float) -> void:
 	_sparks = _sparks.filter(func(s): return s["life"] > 0.0)
 
 	for c in _celebration:
-		c["pos"] += c["vel"] * delta
-		c["vel"].y += 480.0 * delta
-		c["vel"].x *= 0.99
+		c["pos"] += (c["vel"] + Vector2(sin(c["rot"]) * 30.0, 0.0)) * delta
+		c["vel"].y -= 12.0 * delta
 		c["rot"] += c["spin"] * delta
 		c["life"] -= delta
 	_celebration = _celebration.filter(func(c): return c["life"] > 0.0)
@@ -493,6 +528,16 @@ func _build_mountains() -> void:
 		pts.append(Vector2(x, GROUND_Y - 90.0 - h))
 		x += 20.0
 	_mountain_points = pts
+	# cordilheira distante (mais alta, recortada, some na névoa)
+	var far := PackedVector2Array()
+	var fp := [_rng.randf() * TAU, _rng.randf() * TAU, _rng.randf() * TAU]
+	x = 0.0
+	while x <= MOUNTAIN_TILE:
+		var u := x / MOUNTAIN_TILE * TAU
+		var h: float = 190.0 + 90.0 * sin(u * 3.0 + fp[0]) + 46.0 * absf(sin(u * 8.0 + fp[1])) + 18.0 * sin(u * 23.0 + fp[2])
+		far.append(Vector2(x, GROUND_Y - 120.0 - h))
+		x += 16.0
+	_far_points = far
 	# Colinas mais perto: curvas suaves e baixas.
 	var hills := PackedVector2Array()
 	var hp := [_rng.randf() * TAU, _rng.randf() * TAU]
@@ -514,6 +559,7 @@ func _build_city() -> void:
 			"x": x, "w": w, "h": h,
 			"chimney": _rng.randf() < 0.55, "cx": _rng.randf_range(0.2, 0.8), "ch": _rng.randf_range(40, 95),
 			"gear": _rng.randf() < 0.18, "windows": _rng.randi_range(1, 4), "roof": _rng.randf() < 0.4,
+			"spire": _rng.randf() < 0.25, "ruin": _rng.randf(), "seed": _rng.randf_range(0, TAU),
 		})
 		x += w + _rng.randf_range(14, 90)
 
@@ -555,8 +601,10 @@ func _blend_weights() -> Array:
 # com a mesma textura entram no mesmo lote: milhares de formas, poucas chamadas.
 
 var _dot: Texture2D
-var UV_FULL := PackedVector2Array([Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)])
-var UV_FILL := PackedVector2Array([Vector2(0.5, 0.5), Vector2(0.5, 0.5), Vector2(0.5, 0.5), Vector2(0.5, 0.5)])
+# metade esquerda da textura: círculo nítido; metade direita: brilho suave
+var UV_FULL := HudSkin.UV_FULL
+var UV_FILL := HudSkin.UV_FILL
+var UV_GLOW := HudSkin.UV_GLOW
 
 
 func _quad(p: PackedVector2Array, col: Color) -> void:
@@ -577,6 +625,12 @@ func _rect(r: Rect2, col: Color, filled: bool = true, width: float = 1.0) -> voi
 func _circle(c: Vector2, r: float, col: Color) -> void:
 	_ci.draw_primitive(PackedVector2Array([c + Vector2(-r, -r), c + Vector2(r, -r), c + Vector2(r, r), c + Vector2(-r, r)]),
 		PackedColorArray([col, col, col, col]), UV_FULL, _dot)
+
+
+## Brilho suave de luz (halo). Mesma textura: entra no mesmo lote.
+func _glow(c: Vector2, r: float, col: Color) -> void:
+	_ci.draw_primitive(PackedVector2Array([c + Vector2(-r, -r), c + Vector2(r, -r), c + Vector2(r, r), c + Vector2(-r, r)]),
+		PackedColorArray([col, col, col, col]), UV_GLOW, _dot)
 
 
 func _line(a: Vector2, b: Vector2, col: Color, w: float = 1.0) -> void:
@@ -748,9 +802,11 @@ func _build_layers() -> void:
 	_add_layer("Sun", _layer_sun, false)
 	_add_layer("Clouds", _layer_clouds, false)
 	_add_layer("Mountains", _layer_mountains, false)
+	_add_layer("MistFar", _layer_mist.bind(0), false)  # névoa entre os planos
 	_add_layer("Hills", _layer_hills, false)
 	_add_layer("City", _layer_city, false)
 	_add_layer("CityFx", _layer_city_fx, true, 3)     # fumacinha distante: lenta
+	_add_layer("MistNear", _layer_mist.bind(1), false)
 	_add_layer("Trees", _layer_trees, false)
 	_add_layer("Ground", _layer_ground, false)
 	_add_layer("GroundFx", _layer_ground_fx, true)
@@ -769,6 +825,7 @@ func _build_layers() -> void:
 	_add_layer("LocoFx", _layer_loco_fx, true)
 	_add_layer("Front", _layer_front, true)
 	_add_layer("Tufts", _layer_tufts, false)
+	_add_layer("Darkness", _layer_darkness, true, 2)  # move devagar: a cada 2 quadros
 	_add_layer("Overlay", _layer_overlay, true)
 
 
@@ -832,48 +889,53 @@ func _sun_pos() -> Vector2:
 	return Vector2(_size.x * float(_cur["sun_x"]), GROUND_Y - minf(float(_cur["sun_y"]) * SKY_SCALE, GROUND_Y - 330.0))
 
 
-## Sol (dia) ou lua (noite), com contorno suave e brilho em anéis.
+## Sol (dia) ou lua (noite) pintados, com halo suave.
 func _layer_sun() -> void:
 	var sun: Color = _cur["sun"]
 	var r: float = float(_cur["sun_r"]) * 1.45
 	var moon: float = _cur["moon"]
 	var p := _sun_pos()
-	for i in 5:
-		_circle(p, r + 8.0 + i * 30.0, Color(sun, (0.10 - i * 0.018) * (1.0 - 0.4 * moon)))
-	_ink_circle(p, r, sun, 4.0, Color(sun.darkened(0.35), 0.9))
-	_circle(p + Vector2(-r * 0.25, -r * 0.28), r * 0.45, Color(1, 1, 1, 0.35))   # brilho
+	_glow(p, r * 7.5, Color(sun, 0.20 * (1.0 - 0.3 * moon)))
+	_glow(p, r * 2.8, Color(sun, 0.35))
+	_circle(p, r, sun)
+	_circle(p + Vector2(r * 0.16, r * 0.18), r * 0.80, Color(sun.darkened(0.07), 0.6))  # face pintada
 	if moon > 0.02:  # crateras da lua
-		var crater := Color(0.66, 0.70, 0.82, 0.65 * moon)
+		var crater := Color(sun.darkened(0.22), 0.65 * moon)
 		_circle(p + Vector2(-r * 0.30, -r * 0.05), r * 0.20, crater)
 		_circle(p + Vector2(r * 0.28, r * 0.32), r * 0.14, crater)
 		_circle(p + Vector2(r * 0.35, -r * 0.35), r * 0.10, crater)
 
 
-## Nuvens fofas com contorno (opacas: a cor do tema é misturada com o céu).
+## Nuvens pintadas, sem contorno (a cor do tema é misturada com o céu).
 func _layer_clouds() -> void:
 	var cc: Color = _cur["cloud"]
 	var col := (_cur["sky_mid"] as Color).lerp(Color(cc, 1.0), cc.a)
-	var shade := col.darkened(0.12)
-	var ink := Color(col.darkened(0.38), 0.85)
+	var shade := col.lerp(_cur["sky_top"], 0.3)
 	var parts := [[0, 0, 34], [40, 8, 27], [-38, 10, 25], [14, -18, 26], [72, 16, 19], [-68, 17, 17]]
 	_tiled(CLOUD_TILE, func(ox: float):
 		for c in _clouds:
 			var sc: float = c["scale"]
 			var base := Vector2(ox + float(c["x"]), c["y"])
-			for part in parts:
-				_circle(base + Vector2(part[0], part[1]) * sc, (part[2] + 3.0) * sc, ink)
+			_glow(base, 120.0 * sc, Color(col, 0.16))
 			for part in parts:
 				_circle(base + Vector2(part[0], part[1]) * sc, part[2] * sc, shade)
-			for part in parts:  # topo mais claro (luz de cima)
-				_circle(base + Vector2(part[0], part[1] - 5.0) * sc, part[2] * 0.85 * sc, col)
+			for part in parts:  # topo iluminado
+				_circle(base + Vector2(part[0], part[1] - 6.0) * sc, part[2] * 0.82 * sc, col)
 	)
 
 
 func _layer_mountains() -> void:
 	var col: Color = _cur["mountain"]
 	var caps: float = _cur["caps"]
-	var ink := col.darkened(0.35)
+	var far := col.lerp(_cur["sky_horizon"], 0.45)
+	var rim := col.lightened(0.10)
 	_tiled(MOUNTAIN_TILE, func(ox: float):
+		var back := PackedVector2Array()
+		for p in _far_points:
+			back.append(Vector2(p.x + ox, p.y))
+		back.append(Vector2(ox + MOUNTAIN_TILE, GROUND_Y))
+		back.append(Vector2(ox, GROUND_Y))
+		_poly(back, far)
 		var poly := PackedVector2Array()
 		for p in _mountain_points:
 			poly.append(Vector2(p.x + ox, p.y))
@@ -881,7 +943,7 @@ func _layer_mountains() -> void:
 		poly.append(Vector2(ox + MOUNTAIN_TILE, GROUND_Y))
 		poly.append(Vector2(ox, GROUND_Y))
 		_poly(poly, col)
-		_polyline(ridge, ink, 5.0)
+		_polyline(ridge, rim, 3.0)   # luz fria na crista
 		if caps > 0.02:  # neve nos picos
 			var snow_line := GROUND_Y - 290.0
 			for i in range(_mountain_points.size() - 1):
@@ -897,15 +959,31 @@ func _layer_mountains() -> void:
 					if a_bot.y - a.y > 0.5:
 						cap.append(a_bot)
 					if cap.size() >= 3:
-						_poly(cap, Color(0.92, 0.95, 1.0, 0.9 * caps))
+						_poly(cap, Color(col.lerp(Color(0.85, 0.92, 0.95), 0.7), 0.85 * caps))
 	)
+
+
+## Faixa de névoa entre os planos (0: atrás das colinas; 1: atrás das árvores).
+## Dá a profundidade de desenho: o que está longe some na neblina.
+func _layer_mist(which: int) -> void:
+	var fog: Color = _cur["fog"]
+	if fog.a <= 0.01:
+		return
+	var w := _size.x + 40.0
+	var y_mid := GROUND_Y - (150.0 if which == 0 else 36.0)
+	var h := 150.0 if which == 0 else 120.0
+	var solid := Color(fog, fog.a * (1.0 if which == 0 else 0.85))
+	var clear := Color(fog, 0.0)
+	_grad(PackedVector2Array([Vector2(-20, y_mid - h), Vector2(w, y_mid - h), Vector2(w, y_mid), Vector2(-20, y_mid)]),
+		PackedColorArray([clear, clear, solid, solid]))
+	_grad(PackedVector2Array([Vector2(-20, y_mid), Vector2(w, y_mid), Vector2(w, y_mid + h * 0.5), Vector2(-20, y_mid + h * 0.5)]),
+		PackedColorArray([solid, solid, clear, clear]))
 
 
 ## Colinas entre as montanhas e a cidade: dão profundidade ao mundo maior.
 func _layer_hills() -> void:
-	var col := (_cur["mountain"] as Color).lerp(_cur["ground_top"], 0.5).darkened(0.08)
-	var ink := col.darkened(0.4)
-	var light := col.lightened(0.1)
+	var col := (_cur["mountain"] as Color).lerp(_cur["ground_top"], 0.4).darkened(0.25)
+	var rim := col.lightened(0.12)
 	_tiled(HILL_TILE, func(ox: float):
 		var poly := PackedVector2Array()
 		for p in _hill_points:
@@ -914,43 +992,60 @@ func _layer_hills() -> void:
 		poly.append(Vector2(ox + HILL_TILE, GROUND_Y))
 		poly.append(Vector2(ox, GROUND_Y))
 		_poly(poly, col)
-		var shine := PackedVector2Array()
-		for p in ridge:
-			shine.append(p + Vector2(0, 10))
-		_polyline(shine, light, 6.0)
-		_polyline(ridge, ink, 4.5)
+		_polyline(ridge, rim, 3.0)
 	)
 
 
 func _layer_city() -> void:
 	var col: Color = _cur["city"]
-	var ink := col.darkened(0.5)
-	var lit := Color(WARM_LIGHT, float(_cur["window"]))
-	var unlit := col.darkened(0.25)
+	var rim := col.lightened(0.10)
+	var lit_a: float = _cur["window"]
+	var gloom: float = _cur["gloom"]
 	var snow: float = _cur["snow"]
 	_tiled(CITY_TILE, func(ox: float):
 		for b in _buildings:
 			var x: float = ox + b["x"]
 			if x > _size.x + CITY_TILE or x + b["w"] < -CITY_TILE:
 				continue
-			var top: float = GROUND_Y - 30.0 - b["h"]
-			var shapes := [["r", Rect2(x, top, b["w"], b["h"] + 30.0), col]]
-			if b["roof"]:
-				shapes.append(["p", PackedVector2Array([Vector2(x - 6, top), Vector2(x + b["w"] * 0.5, top - 34.0), Vector2(x + b["w"] + 6, top)]), col.darkened(0.12)])
-			if b["chimney"]:
-				var cx: float = x + b["w"] * b["cx"]
-				shapes.append(["r", Rect2(cx - 8, top - b["ch"], 16, b["ch"]), col])
-			_ink_group(shapes, 3.0, ink)
-			if snow > 0.02:  # neve no telhado
-				_rect(Rect2(x - 3, top - 4, b["w"] + 6, 7), Color(0.90, 0.94, 1.0, 0.9 * snow))
-			# janelas (acesas conforme o tema)
+			var w: float = b["w"]
+			var h: float = b["h"]
+			var top: float = GROUND_Y - 30.0 - h
+			var sd: float = b["seed"]
+			# ruínas: quanto mais sombria a região, mais prédios quebrados
+			var ruined: bool = float(b["ruin"]) < gloom * 0.55
+			if ruined:
+				top += h * 0.3
+				_rect(Rect2(x, top, w, GROUND_Y - top), col)
+				var tw := w / 4.0
+				for k in 4:  # topo serrilhado
+					var th := (0.12 + 0.18 * absf(sin(sd + k * 1.9))) * h
+					var x0 := x + k * tw
+					_quad(PackedVector2Array([Vector2(x0, top + 1), Vector2(x0 + tw * 0.3, top - th), Vector2(x0 + tw * 0.75, top - th * 0.55), Vector2(x0 + tw, top + 1)]), col)
+			else:
+				_rect(Rect2(x, top, w, h + 30.0), col)
+				if b["roof"]:  # telhado pontudo
+					_poly(PackedVector2Array([Vector2(x - 6, top + 1), Vector2(x + w * 0.5, top - 52.0), Vector2(x + w + 6, top + 1)]), col)
+				if b["spire"]:  # torre fina
+					var sx := x + w * 0.5
+					_rect(Rect2(sx - 9, top - 60, 18, 61), col)
+					_poly(PackedVector2Array([Vector2(sx - 12, top - 59), Vector2(sx, top - 150.0), Vector2(sx + 12, top - 59)]), col)
+				if b["chimney"]:
+					var cx: float = x + w * b["cx"]
+					_rect(Rect2(cx - 8, top - b["ch"], 16, b["ch"] + 1), col)
+				if snow > 0.02:  # neve no telhado
+					_rect(Rect2(x - 3, top - 4, w + 6, 6), Color(0.80, 0.88, 0.92, 0.8 * snow))
+			_rect(Rect2(x, top, 3, GROUND_Y - top), rim)   # luz fria na quina
+			# janelas em arco; as acesas brilham na névoa
 			for wi in b["windows"]:
-				var wr := Rect2(x + 12 + wi * 30, top + 20, 13, 17)
-				if wr.end.x > x + b["w"] - 6:
+				var wr := Rect2(x + 12 + wi * 30, top + 22, 10, 16)
+				if wr.end.x > x + w - 6:
 					break
-				_rect(wr.grow(2), ink)
-				_rect(wr, unlit.lerp(lit, lit.a))
-				_line(Vector2(wr.position.x, wr.get_center().y), Vector2(wr.end.x, wr.get_center().y), ink, 1.5)
+				var on: bool = lit_a > 0.02 and (int(b["x"]) + wi) % 3 != 0 and not (ruined and wi % 2 == 1)
+				var wc := col.lerp(WARM_LIGHT, lit_a) if on else col.darkened(0.35)
+				if on:
+					_glow(wr.get_center(), 30.0, Color(WARM_LIGHT, 0.28 * lit_a))
+				_rect(wr, wc)
+				_poly(PackedVector2Array([wr.position, Vector2(wr.get_center().x, wr.position.y - 6), Vector2(wr.end.x, wr.position.y)]), wc)
 	)
 
 
@@ -970,7 +1065,7 @@ func _layer_trees() -> void:
 					continue
 				var sc: float = t["scale"]
 				var foot := Vector2(x, GROUND_Y - 10.0 + t["y"])
-				var col: Color = colors[int(t["color"]) % colors.size()]
+				var col: Color = (colors[int(t["color"]) % colors.size()] as Color).lerp(_cur["city"], 0.15 + 0.35 * float(_cur["gloom"]))
 				if theme["tree_shape"] == "pine":
 					_draw_pine(foot, sc, col, alpha, float(_cur["snow"]))
 				else:
@@ -979,36 +1074,36 @@ func _layer_trees() -> void:
 
 
 func _draw_round_tree(foot: Vector2, sc: float, col: Color, alpha: float, blossom: bool) -> void:
-	var ink := Color(INK, alpha * alpha)
+	var ink := Color(col.darkened(0.7), alpha * alpha)
 	var c := Color(col, alpha)
 	var top := foot + Vector2(0, -66 * sc)
 	var blobs := [[Vector2.ZERO, 30.0], [Vector2(-23, 12), 22.0], [Vector2(23, 12), 22.0], [Vector2(0, 16), 22.0]]
-	_rect(Rect2(foot.x - 5 * sc, foot.y - 46 * sc, 10 * sc, 46 * sc).grow(2.5), ink)
+	_rect(Rect2(foot.x - 5 * sc, foot.y - 46 * sc, 10 * sc, 46 * sc).grow(1.5), ink)
 	for bl in blobs:
-		_circle(top + bl[0] * sc, bl[1] * sc + 3.0, ink)
+		_circle(top + bl[0] * sc, bl[1] * sc + 2.0, ink)
 	_rect(Rect2(foot.x - 5 * sc, foot.y - 46 * sc, 10 * sc, 46 * sc), Color(WOOD_DARK, alpha))
 	for bl in blobs:
 		_circle(top + bl[0] * sc, bl[1] * sc, Color(col.darkened(0.18), alpha))   # sombra
 	_circle(top + Vector2(-4, -4) * sc, 26 * sc, c)
 	_circle(top + Vector2(-18, 8) * sc, 15 * sc, c)
-	_circle(top + Vector2(-10, -12) * sc, 11 * sc, Color(col.lightened(0.22), alpha))  # brilho
+	_circle(top + Vector2(-10, -12) * sc, 11 * sc, Color(col.lightened(0.10), alpha))  # brilho
 	if blossom:
 		for i in 7:
 			var a := i * 0.9 + foot.x * 0.05
-			_circle(top + Vector2(cos(a), sin(a) * 0.8) * (10.0 + (i % 3) * 9.0) * sc, 3.2 * sc, Color(1, 1, 1, 0.85 * alpha))
+			_circle(top + Vector2(cos(a), sin(a) * 0.8) * (10.0 + (i % 3) * 9.0) * sc, 3.2 * sc, Color(1, 1, 1, 0.55 * alpha))
 
 
 func _draw_pine(foot: Vector2, sc: float, col: Color, alpha: float, snow: float) -> void:
-	var ink := Color(INK, alpha * alpha)
+	var ink := Color(col.darkened(0.7), alpha * alpha)
 	var trunk := Rect2(foot.x - 4 * sc, foot.y - 16 * sc, 8 * sc, 16 * sc)
 	var tiers: Array[PackedVector2Array] = []
 	for i in 3:
 		var base_y := foot.y - (12.0 + i * 28.0) * sc
 		var half := (30.0 - i * 7.0) * sc
 		tiers.append(PackedVector2Array([Vector2(foot.x - half, base_y), Vector2(foot.x + half, base_y), Vector2(foot.x, base_y - 42.0 * sc)]))
-	_rect(trunk.grow(2.5), ink)
+	_rect(trunk.grow(1.5), ink)
 	for t in tiers:
-		_ink_outline(t, 2.5, ink)
+		_ink_outline(t, 1.8, ink)
 	_rect(trunk, Color(WOOD_DARK, alpha))
 	for t in tiers:
 		_poly(t, Color(col, alpha))
@@ -1018,7 +1113,7 @@ func _draw_pine(foot: Vector2, sc: float, col: Color, alpha: float, snow: float)
 			var tip := t[2]
 			var half := (t[1].x - t[0].x) * 0.5
 			_poly(PackedVector2Array([tip, tip + Vector2(-half * 0.45, 19.0 * sc), tip + Vector2(0, 13.0 * sc), tip + Vector2(half * 0.45, 19.0 * sc)]),
-				Color(0.94, 0.97, 1.0, 0.92 * alpha * snow))
+				Color(0.80, 0.88, 0.92, 0.85 * alpha * snow))
 
 
 func _layer_ground() -> void:
@@ -1029,7 +1124,7 @@ func _layer_ground() -> void:
 	_grad(PackedVector2Array([Vector2(-20, GROUND_Y - 8), Vector2(w, GROUND_Y - 8), Vector2(w, _size.y + 20), Vector2(-20, _size.y + 20)]),
 		PackedColorArray([g_top, g_top, g_bot, g_bot]))
 	# faixa de luz no horizonte do campo e linha de tinta
-	_rect(Rect2(-20, GROUND_Y - 8, w + 20, 6), g_top.lightened(0.12))
+	_rect(Rect2(-20, GROUND_Y - 8, w + 20, 6), g_top.lightened(0.05))
 	_line(Vector2(-20, GROUND_Y - 8), Vector2(w, GROUND_Y - 8), g_top.darkened(0.45), 3.0)
 	# lastro de brita (faixa) com contorno
 	var ballast: Color = _cur["ballast"]
@@ -1059,9 +1154,9 @@ func _layer_dots() -> void:
 				var col: Color = dot_colors[int(d.z) % dot_colors.size()]
 				var r := 3.5 + d.y * 3.5
 				var p := Vector2(ox + d.x, dy)
-				_circle(p, r + 2.0, Color(INK, 0.55 * a))
+				_circle(p, r + 1.5, Color(INK, 0.35 * a))
 				_circle(p, r, Color(col, a))
-				_circle(p + Vector2(-r * 0.3, -r * 0.3), r * 0.35, Color(1, 1, 1, 0.5 * a))
+				_circle(p + Vector2(-r * 0.3, -r * 0.3), r * 0.35, Color(1, 1, 1, 0.25 * a))
 		)
 
 
@@ -1095,11 +1190,21 @@ func _layer_poles() -> void:
 	var tops: Array[Vector2] = []
 	var pole := WOOD_DARK
 	var ink := INK
+	var lamp: float = _cur["lamp"]
 	while x < _size.x + POLE_SPACING * 2.0:
-		_ink_group([["r", Rect2(x, GROUND_Y - 220, 11, 220), pole], ["r", Rect2(x - 24, GROUND_Y - 208, 59, 8), pole]], 3.0, ink)
-		_rect(Rect2(x, GROUND_Y - 220, 4, 220), pole.lightened(0.15))
+		_ink_group([["r", Rect2(x, GROUND_Y - 220, 11, 220), pole], ["r", Rect2(x - 24, GROUND_Y - 208, 59, 8), pole]], 2.5, ink)
+		_rect(Rect2(x, GROUND_Y - 220, 3, 220), pole.lightened(0.10))
 		for dx in [-18.0, 29.0]:
-			_ink_circle(Vector2(x + dx, GROUND_Y - 213), 4.5, CREAM, 2.0, ink)
+			_ink_circle(Vector2(x + dx, GROUND_Y - 213), 4.0, METAL, 2.0, ink)
+		# lampião pendurado no braço do poste
+		var lp := Vector2(x + 44.0, GROUND_Y - 176.0)
+		_line(Vector2(x + 35, GROUND_Y - 204), Vector2(x + 44, GROUND_Y - 204), ink, 3.0)
+		_line(Vector2(x + 44, GROUND_Y - 204), lp + Vector2(0, -14), ink, 2.0)
+		if lamp > 0.02:
+			_glow(lp, 120.0, Color(WARM_LIGHT, 0.30 * lamp))
+			_glow(lp, 40.0, Color(WARM_LIGHT, 0.45 * lamp))
+		_ink_rect(Rect2(lp - Vector2(7, 12), Vector2(14, 22)), CHARCOAL.lerp(WARM_LIGHT, lamp), 2.5, ink)
+		_ink_poly(PackedVector2Array([lp + Vector2(-10, -12), lp + Vector2(0, -20), lp + Vector2(10, -12)]), CHARCOAL, 2.0, ink)
 		tops.append(Vector2(x, GROUND_Y - 213))
 		x += POLE_SPACING
 	# fios caídos entre os postes
@@ -1108,15 +1213,15 @@ func _layer_poles() -> void:
 			var a: Vector2 = tops[i] + Vector2(dx, 0)
 			var b: Vector2 = tops[i + 1] + Vector2(dx, 0)
 			var pts := PackedVector2Array()
-			for s in 9:
-				var t := s / 8.0
+			for sgi in 9:
+				var t := sgi / 8.0
 				pts.append(a.lerp(b, t) + Vector2(0, sin(t * PI) * 26.0))
-			_polyline(pts, Color(INK, 0.85), 2.0)
+			_polyline(pts, Color(INK, 0.8), 1.6)
 
 
 func _layer_tufts() -> void:
-	var c: Color = _cur["tuft"]
-	var light := c.lightened(0.18)
+	var c: Color = (_cur["tuft"] as Color).darkened(0.45)
+	var light := c.lightened(0.08)
 	var snow: float = _cur["snow"]
 	_tiled(FRONT_TILE, func(ox: float):
 		for t in _tufts:
@@ -1128,9 +1233,9 @@ func _layer_tufts() -> void:
 				var dir := Vector2(cos(ang), sin(ang))
 				var side := dir.orthogonal() * 6.5
 				var blade := PackedVector2Array([Vector2(x, y) - side, Vector2(x, y) + dir * length, Vector2(x, y) + side])
-				_ink_poly(blade, c if k % 2 == 0 else light, 1.8, c.darkened(0.55))
+				_ink_poly(blade, c if k % 2 == 0 else light, 1.4, c.darkened(0.6))
 				if snow > 0.02:
-					_circle(Vector2(x, y) + dir * length, 4.0, Color(0.96, 0.98, 1.0, snow))
+					_circle(Vector2(x, y) + dir * length, 4.0, Color(0.78, 0.86, 0.90, snow))
 	)
 
 
@@ -1191,7 +1296,7 @@ func _layer_sky_fx() -> void:
 			var dir := Vector2(cos(ang), sin(ang))
 			var length := r * (2.0 + 0.45 * sin(_time * 1.3 + i * 1.9))
 			var side := dir.orthogonal() * r * 0.16
-			_poly(PackedVector2Array([p + dir * (r + 10.0) - side, p + dir * length, p + dir * (r + 10.0) + side]), Color(sun, 0.30 * rays))
+			_poly(PackedVector2Array([p + dir * (r + 10.0) - side, p + dir * length, p + dir * (r + 10.0) + side]), Color(sun, 0.14 * rays))
 
 
 ## Fumacinha das chaminés e engrenagens girando da cidade (camada viva).
@@ -1210,11 +1315,13 @@ func _layer_city_fx() -> void:
 			if x > view_right or x + b["w"] < view_left:
 				continue
 			var top: float = GROUND_Y - 30.0 - b["h"]
+			if float(b["ruin"]) < float(_cur["gloom"]) * 0.55:
+				continue   # ruína: sem chaminé nem engrenagem
 			if b["chimney"]:
 				var cx: float = x + b["w"] * b["cx"]
 				for j in 3:
 					var t := fmod(_time * 0.4 + j * 0.33 + b["x"] * 0.01, 1.0)
-					_circle(Vector2(cx - t * 40.0, top - b["ch"] - 10 - t * 56.0), 7 + t * 14, Color(0.82, 0.78, 0.74, 0.30 * (1.0 - t)))
+					_circle(Vector2(cx - t * 40.0, top - b["ch"] - 10 - t * 56.0), 7 + t * 14, Color((_cur["fog"] as Color).darkened(0.2), 0.30 * (1.0 - t)))
 			if b["gear"]:
 				var gc := Vector2(x + b["w"] * 0.5, top - 6)
 				_ink_gear(gc, 34, 25, 10, _time * 0.4, col.lightened(0.08), 2.5, ink)
@@ -1228,9 +1335,13 @@ func _layer_tender_wheels() -> void:
 
 func _layer_beam() -> void:
 	var lamp := Vector2(LOCO_X + 380.0, GROUND_Y - 200.0 + _bob())
-	var glow := float(_cur["beam"]) * (1.0 + 0.25 * sin(_time * 7.0))
+	var glow := float(_cur["beam"]) * (1.0 + 0.2 * sin(_time * 7.0))
 	if glow > 0.005:
-		_poly(PackedVector2Array([lamp, lamp + Vector2(460, -70), lamp + Vector2(460, 120)]), Color(WARM_LIGHT, glow))
+		var on := Color(WARM_LIGHT, minf(1.0, glow * 1.6))
+		var off := Color(WARM_LIGHT, 0.0)
+		_grad(PackedVector2Array([lamp + Vector2(0, -10), lamp + Vector2(560, -100), lamp + Vector2(560, 150), lamp + Vector2(0, 10)]),
+			PackedColorArray([on, off, off, on]))
+		_glow(lamp, 90.0, Color(WARM_LIGHT, minf(1.0, glow * 2.0)))
 
 
 func _layer_loco_fx() -> void:
@@ -1242,6 +1353,57 @@ func _layer_front() -> void:
 	_draw_sparks()
 	_draw_maintenance_icon()
 	_draw_weather()
+
+
+## A escuridão que consome tudo atrás do trem: massa que respira na borda
+## esquerda, tentáculos e pedaços do mundo sendo puxados para dentro dela.
+## Avança ao acaso, chega mais perto com o trem parado e, ao sair da estação,
+## escurece a tela por alguns segundos. Nunca cobre o trem.
+func _layer_darkness() -> void:
+	var gloom: float = _cur["gloom"]
+	var depart := _dark_depart * _dark_depart * (3.0 - 2.0 * _dark_depart)
+	# quase fora da tela; espia pela borda nos avanços aleatórios
+	var reach := minf(-30.0 + 90.0 * gloom + 150.0 * _dark_surge + 190.0 * _dark_creep + 170.0 * depart, TENDER_X - 260.0)
+	var h := _size.y
+	if depart > 0.01:  # a luz do mundo baixa por um instante
+		var a := 0.30 * depart
+		_grad(PackedVector2Array([Vector2(-20, -20), Vector2(_size.x + 20, -20), Vector2(_size.x + 20, h + 20), Vector2(-20, h + 20)]),
+			PackedColorArray([Color(DARK, a), Color(DARK, a * 0.3), Color(DARK, a * 0.3), Color(DARK, a)]))
+	# sombra que se espalha à frente da massa
+	var fade := reach + 260.0
+	_grad(PackedVector2Array([Vector2(-20, -40), Vector2(fade, -40), Vector2(fade, h + 40), Vector2(-20, h + 40)]),
+		PackedColorArray([Color(DARK, 0.6), Color(DARK, 0.0), Color(DARK, 0.0), Color(DARK, 0.6)]))
+	# massa: bolhas que respiram, com uma borda fria
+	var rows := 14
+	var step := (h + 80.0) / rows
+	var blobs: Array[Vector3] = []
+	for i in rows + 1:
+		var wob := sin(_time * 0.9 + i * 1.7) * 34.0 + sin(_time * 2.3 + i * 0.6) * 16.0
+		blobs.append(Vector3(reach + wob - 60.0, -40.0 + i * step, 70.0 + 22.0 * sin(_time * 1.3 + i * 2.1)))
+	for bl in blobs:
+		_circle(Vector2(bl.x, bl.y), bl.z + 9.0, Color(DARK_RIM, 0.5))
+	_rect(Rect2(-20, -40, reach - 40.0, h + 80.0), DARK)
+	for bl in blobs:
+		_circle(Vector2(bl.x, bl.y), bl.z, DARK)
+	# tentáculos tateando à frente
+	var reach_mul := 0.6 + 0.6 * _dark_surge + 0.5 * depart + 0.3 * _dark_creep
+	for k in 7:
+		var phase := k * 2.39
+		var length := (110.0 + 90.0 * sin(_time * 0.5 + phase)) * reach_mul
+		var start := Vector2(reach + sin(_time * 0.9 + k) * 20.0, h * (0.08 + k * 0.135))
+		var prev := start
+		for sgi in range(1, 7):
+			var t := sgi / 6.0
+			var pt := start + Vector2(length * t, sin(_time * 1.6 + phase + t * 4.0) * 26.0 * t + t * t * 24.0 * sin(phase))
+			_line(prev, pt, DARK, lerpf(24.0, 3.0, t))
+			if t < 0.8:
+				_circle(pt, lerpf(12.0, 1.5, t), DARK)
+			prev = pt
+	# pedaços do mundo sendo puxados para dentro
+	for k in 16:
+		var t := fmod(_time * 0.16 + k * 0.137, 1.0)
+		var pt := Vector2(reach + 30.0 + (1.0 - t) * 300.0, h * fmod(k * 0.379 + 0.1, 1.0) + sin(_time + k) * 18.0)
+		_circle(pt, lerpf(2.0, 5.5, t), Color(DARK, t * 0.85))
 
 
 func _layer_overlay() -> void:
@@ -1268,15 +1430,15 @@ func _draw_station_signs() -> void:
 			continue
 		# plataforma de pedra com borda creme
 		var plat := Rect2(x, GROUND_Y - 34, PLATFORM_W, 30)
-		_ink_rect(plat, Color(0.62, 0.36, 0.28), 3.0)
+		_ink_rect(plat, STONE, 3.0)
 		for bx in range(0, int(PLATFORM_W), 38):   # tijolos
 			_line(Vector2(x + bx, GROUND_Y - 22), Vector2(x + bx, GROUND_Y - 6), INK, 1.5)
 		_line(Vector2(x, GROUND_Y - 16), Vector2(x + PLATFORM_W, GROUND_Y - 16), INK, 1.5)
-		_ink_rect(Rect2(x - 6, GROUND_Y - 42, PLATFORM_W + 12, 9), CREAM, 3.0)
+		_ink_rect(Rect2(x - 6, GROUND_Y - 42, PLATFORM_W + 12, 9), STONE.lightened(0.25), 3.0)
 		# postes de luz nas pontas
 		for lx in [x + 24.0, x + PLATFORM_W - 30.0]:
 			_ink_rect(Rect2(lx, GROUND_Y - 190, 8, 150), CHARCOAL, 3.0)
-			_circle(Vector2(lx + 4, GROUND_Y - 200), 34, Color(WARM_LIGHT, 0.18))
+			_glow(Vector2(lx + 4, GROUND_Y - 200), 170, Color(WARM_LIGHT, 0.40))
 			_ink_circle(Vector2(lx + 4, GROUND_Y - 200), 12, WARM_LIGHT, 3.0)
 			_ink_rect(Rect2(lx - 8, GROUND_Y - 216, 24, 6), CHARCOAL, 2.5)
 		# placa pendurada com o nome (acima do trem, para ficar legível)
@@ -1311,14 +1473,14 @@ func _draw_smoke(behind: bool) -> void:
 			var a: float = clampf(p["life"], 0.0, 1.0)
 			var c: Color
 			if steam:
-				c = Color(1, 1, 1, a * 0.7)
+				c = Color(0.82, 0.88, 0.92, a * 0.55)
 			else:
-				var g: float = lerpf(0.40, 0.90, 1.0 - a) + p["shade"] * 0.2
-				c = Color(g, g * 0.98, g * 0.95, a * 0.85)
+				var g: float = lerpf(0.14, 0.46, 1.0 - a) + p["shade"] * 0.12
+				c = Color(g, g * 1.03, g * 1.09, a * 0.85)
 			var r: float = p["r"]
 			var pos: Vector2 = p["pos"]
 			if pass_i == 0:
-				var ink := Color(INK if not steam else Color(0.55, 0.6, 0.7), a * (0.55 if steam else 0.7))
+				var ink := Color(INK if not steam else Color(0.45, 0.52, 0.58), a * (0.4 if steam else 0.6))
 				_circle(pos, r + 3.0, ink)
 				if not steam:
 					_circle(pos + Vector2(r * 0.6, r * 0.2), r * 0.7 + 3.0, ink)
@@ -1326,13 +1488,13 @@ func _draw_smoke(behind: bool) -> void:
 				_circle(pos, r, c)
 				if not steam:
 					_circle(pos + Vector2(r * 0.6, r * 0.2), r * 0.7, c)
-					_circle(pos + Vector2(-r * 0.25, -r * 0.3), r * 0.45, Color(1, 1, 1, a * 0.25))
+					_circle(pos + Vector2(-r * 0.25, -r * 0.3), r * 0.45, Color(1, 1, 1, a * 0.10))
 
 
 func _draw_sparks() -> void:
 	for s in _sparks:
 		var a: float = clampf(s["life"] * 1.6, 0.0, 1.0)
-		_circle(s["pos"], 8.0, Color(1.0, 0.5, 0.1, a * 0.25))
+		_glow(s["pos"], 18.0, Color(1.0, 0.55, 0.15, a * 0.6))
 		_circle(s["pos"], 3.4, Color(1.0, 0.78, 0.3, a))
 
 
@@ -1345,7 +1507,7 @@ func _draw_weather() -> void:
 		if kind == "none" or alpha <= 0.01:
 			continue
 		var colors: Array = theme["weather_colors"]
-		var fall := 50.0 if kind == "petals" else (80.0 if kind == "leaves" else 70.0)
+		var fall: float = {"petals": 50.0, "leaves": 80.0, "ash": 26.0}.get(kind, 70.0)
 		var count := WEATHER_COUNT if kind == "snow" else WEATHER_COUNT / 2
 		for i in count:
 			var w: Dictionary = _weather[i]
@@ -1362,6 +1524,12 @@ func _draw_weather() -> void:
 			match kind:
 				"snow":
 					_circle(pos, 3.2 * sz, col)
+				"ash":
+					if int(w["color"]) == 0:   # brasa
+						_glow(pos, 12.0 * sz, Color(1.0, 0.5, 0.18, 0.45 * alpha))
+						_circle(pos, 1.6 * sz, Color(1.0, 0.75, 0.4, alpha))
+					else:   # fuligem
+						_circle(pos, 2.2 * sz, Color(col, 0.6 * alpha))
 				"petals":
 					var a := _time * 2.5 * sp + ph
 					var d := Vector2(cos(a), sin(a)) * 6.0 * sz
@@ -1377,7 +1545,7 @@ func _draw_weather() -> void:
 func _draw_speed_lines() -> void:
 	if _speed_ratio < 0.45:
 		return
-	var a := (_speed_ratio - 0.45) / 0.55 * 0.35
+	var a := (_speed_ratio - 0.45) / 0.55 * 0.15
 	for i in 12:
 		var y := 100.0 + i * 52.0
 		var length := 120.0 + (i * 53) % 160
@@ -1387,15 +1555,11 @@ func _draw_speed_lines() -> void:
 
 func _draw_celebration() -> void:
 	for c in _celebration:
-		var a: float = clampf(c["life"], 0.0, 1.0)
-		if c["gear"]:
-			_ink_gear(c["pos"], c["size"] * 1.3, c["size"], 8, c["rot"], Color(BRASS, a), 2.0, Color(INK, a))
-		else:
-			var rot: float = c["rot"]
-			var d: Vector2 = Vector2(cos(rot), sin(rot)) * float(c["size"]) * 0.7
-			var o := d.orthogonal() * 0.5
-			var pos: Vector2 = c["pos"]
-			_poly(PackedVector2Array([pos - d - o, pos + d - o, pos + d + o, pos - d + o]), Color(CONFETTI[int(c["color"])], a))
+		var a: float = clampf(c["life"], 0.0, 1.0) * (0.7 + 0.3 * sin(float(c["rot"]) * 2.0))
+		var col: Color = MOTES[int(c["color"])]
+		var sz: float = c["size"]
+		_glow(c["pos"], sz * 6.0, Color(col, 0.35 * a))
+		_circle(c["pos"], sz, Color(col.lightened(0.4), a))
 
 
 # ---------------------------------------------------------------------------
@@ -1474,7 +1638,7 @@ func _draw_loco_body(o: Vector2) -> void:
 	_rect(Rect2(b + Vector2(-12, -236), Vector2(136, 5)), CHARCOAL_LIGHT)
 	var win := Rect2(b + Vector2(20, -200), Vector2(70, 66))
 	_ink_rrect(win, 10.0, CREAM, 3.0)
-	_ink_rrect(win.grow(-7), 6.0, Color(0.26, 0.14, 0.10), 2.0)
+	_ink_rrect(win.grow(-7), 6.0, Color(0.16, 0.10, 0.07), 2.0)
 	_rect(Rect2(b + Vector2(14, -122), Vector2(88, 48)), WINE_DARK, false, 3.0)
 	_rect(Rect2(b + Vector2(18, -118), Vector2(80, 40)), BRASS, false, 2.0)
 	var plate := Rect2(b + Vector2(30, -112), Vector2(56, 28))
@@ -1483,24 +1647,22 @@ func _draw_loco_body(o: Vector2) -> void:
 
 	var snow: float = _cur["snow"]
 	if snow > 0.02:  # neve acumulada no teto da cabine e no alto da caldeira
-		var white := Color(0.95, 0.98, 1.0, snow)
+		var white := Color(0.80, 0.88, 0.92, snow)
 		_ink_rrect(Rect2(b + Vector2(-18, -250), Vector2(148, 14)), 7.0, white, 2.5, Color(0.45, 0.55, 0.70, snow))
 		_rect(Rect2(b + Vector2(112, -190), Vector2(40, 7)), white)
 		_rect(Rect2(b + Vector2(180, -190), Vector2(24, 6)), white)
 		_rect(Rect2(b + Vector2(268, -272), Vector2(96, 7)), white)
 
 
-## Partes vivas da locomotiva: luz da cabine, maquinista, rodas e bielas.
+## Partes vivas da locomotiva: luz da fornalha na cabine, rodas e bielas.
 func _draw_loco_fx() -> void:
 	var o := Vector2(LOCO_X, GROUND_Y)           # origem: base da cabine, no trilho
 	var b := o + Vector2(0, _bob())              # partes presas ao corpo balançam junto
 	var flicker := 0.85 + 0.15 * sin(_time * 11.0) * sin(_time * 3.7)
 	# luz da fornalha dentro da cabine (mais forte com a caldeira atiçada)
 	var inner := Rect2(b + Vector2(27, -193), Vector2(56, 52))
-	_rect(inner, Color(1.0, 0.62, 0.25, (0.22 + 0.5 * _stoke) * flicker))
-	_draw_engineer(b)
-	if _stoke > 0.02:  # brilho em volta da janela
-		_circle(b + Vector2(55, -167), 46.0 + 20.0 * _stoke, Color(1.0, 0.5, 0.15, 0.16 * _stoke))
+	_rect(inner, Color(1.0, 0.62, 0.25, (0.40 + 0.5 * _stoke) * flicker))
+	_glow(inner.get_center(), 80.0 + 50.0 * _stoke, Color(1.0, 0.58, 0.22, (0.22 + 0.4 * _stoke) * flicker))
 
 	# Rodas (sem balanço: ficam no trilho)
 	for w in _loco_wheels():
@@ -1522,69 +1684,6 @@ func _draw_loco_fx() -> void:
 	for c in drivers:
 		_ink_circle(c + crank, 5.5, METAL, 2.5)
 	_ink_rect(Rect2(crosshead - Vector2(10, 8), Vector2(20, 16)), BRONZE, 2.5)
-
-
-## O maquinista (personagem original): boné, bigodão e nariz grande, debruçado
-## na janela. Muda de expressão conforme o que acontece com o trem.
-func _draw_engineer(b: Vector2) -> void:
-	var worried := _train_state == TrainMovement.State.BRAKING or _in_maintenance
-	var at_station := _train_state == TrainMovement.State.AT_STATION
-	var happy := not worried and (_stoke > 0.45 or at_station or not _celebration.is_empty())
-	var hop := absf(sin(_time * 9.0)) * 3.0 if happy else 0.0
-	var shiver := sin(_time * 40.0) * 1.2 if worried else 0.0
-	var h := b + Vector2(56 + shiver, -160 - hop)    # centro da cabeça
-
-	# ombros e braço apoiado na janela
-	_ink_rrect(Rect2(h + Vector2(-26, 14), Vector2(54, 24)), 10.0, OVERALL, 3.0)
-	_rect(Rect2(h + Vector2(-6, 14), Vector2(14, 10)), WINE_LIGHT)   # lenço
-	if at_station and not worried:
-		# acenando para a plataforma
-		var wave := sin(_time * 10.0) * 0.5
-		var hand := h + Vector2(44, -26) + Vector2(cos(-1.1 + wave), sin(-1.1 + wave)) * 10.0
-		_line(h + Vector2(20, 18), hand, INK, 13.0)
-		_line(h + Vector2(20, 18), hand, OVERALL, 8.0)
-		_ink_circle(hand, 8.0, SKIN, 3.0)
-	else:
-		_ink_rrect(Rect2(h + Vector2(8, 22), Vector2(36, 13)), 6.0, OVERALL, 3.0)
-		_ink_circle(h + Vector2(46, 28), 7.5, SKIN, 3.0)
-
-	# cabeça
-	_ink_circle(h, 19.0, SKIN, 3.5)
-	_circle(h + Vector2(-13, 7), 5.0, SKIN.darkened(0.08))            # orelha
-	_circle(h + Vector2(9, 6), 5.0, Color(1.0, 0.55, 0.5, 0.45))     # bochecha
-	# bigode e nariz
-	_ink_circle(h + Vector2(11, 10), 7.0, Color(0.42, 0.28, 0.20), 2.5)
-	_ink_circle(h + Vector2(22, 9), 6.5, Color(0.42, 0.28, 0.20), 2.5)
-	_ink_circle(h + Vector2(18, 1), 7.0, SKIN.darkened(0.05), 3.0)
-	_circle(h + Vector2(16, -2), 2.2, Color(1, 1, 1, 0.6))
-	# boca
-	if worried:
-		_ink_circle(h + Vector2(16, 19), 3.5, Color(0.3, 0.08, 0.08), 2.0)
-	elif happy:
-		_arc(h + Vector2(15, 14), 7.0, 0.3, PI - 0.3, 8, INK, 3.0)
-	# olhos (piscam de vez em quando)
-	var blink := fmod(_time + 0.7, 3.7) < 0.12
-	for e in [Vector2(2, -6), Vector2(13, -7)]:
-		var ec: Vector2 = h + e
-		if blink:
-			_line(ec + Vector2(-4, 0), ec + Vector2(4, 0), INK, 2.5)
-		elif happy:
-			_arc(ec + Vector2(0, 2), 4.0, PI + 0.3, TAU - 0.3, 6, INK, 2.5)
-		else:
-			_ink_circle(ec, 4.2, Color.WHITE, 2.0)
-			_circle(ec + Vector2(1.5, 0.5 if not worried else -0.5), 2.0 if not worried else 1.4, INK)
-	if worried:  # sobrancelhas aflitas e gota de suor
-		_line(h + Vector2(-2, -14), h + Vector2(5, -12), INK, 2.5)
-		_line(h + Vector2(10, -12), h + Vector2(17, -14), INK, 2.5)
-		var drop := h + Vector2(-16, -14 + fmod(_time * 20.0, 10.0))
-		_ink_poly(PackedVector2Array([drop + Vector2(0, -7), drop + Vector2(4, 1), drop + Vector2(-4, 1)]), Color(0.7, 0.88, 1.0), 1.5)
-		_circle(drop + Vector2(0, 1), 4.0, Color(0.7, 0.88, 1.0))
-	# boné de maquinista com distintivo
-	var cap := PackedVector2Array([h + Vector2(-19, -10), h + Vector2(-16, -26), h + Vector2(14, -27), h + Vector2(18, -10)])
-	_ink_poly(cap, OVERALL.darkened(0.25), 3.0)
-	_ink_poly(PackedVector2Array([h + Vector2(14, -12), h + Vector2(34, -8), h + Vector2(16, -6)]), CHARCOAL, 2.5)
-	_rect(Rect2(h + Vector2(-17, -16), Vector2(33, 4)), WINE_LIGHT)
-	_ink_circle(h + Vector2(0, -20), 3.5, BRASS, 1.5)
 
 
 ## Corpo do tender (fixo). O nó da camada aplica o balanço; as rodas são vivas.

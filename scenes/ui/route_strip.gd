@@ -45,7 +45,7 @@ func _draw() -> void:
 	# trilho: dormentes e dois trilhos
 	var x := 16.0
 	while x < size.x - 16.0:
-		HudSkin.rect(self, Rect2(x, y - 5, 5, 10), Color(0.30, 0.18, 0.10))
+		HudSkin.rect(self, Rect2(x, y - 5, 5, 10), Color(0.20, 0.19, 0.19))
 		x += 12.0
 	HudSkin.line(self, Vector2(16, y - 3), Vector2(size.x - 16, y - 3), HudSkin.METAL, 2.0)
 	HudSkin.line(self, Vector2(16, y + 3), Vector2(size.x - 16, y + 3), HudSkin.METAL, 2.0)
