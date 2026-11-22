@@ -25,6 +25,9 @@ Us, Mad Max, NieR: Automata). Progressão, trechos e recompensas não mudaram.
   estilhaços de concreto); nomes longos quebram em duas linhas na placa da rota
 - Música: provisoriamente, as mesmas variações da valsa das estações antigas
 
+**Versão web no ar:** https://pedro-juv.github.io/long-train-journey/ (publicada
+automaticamente a cada atualização da main; o progresso fica salvo no navegador)
+
 ## [0.5.0] — 2026-11-21 · Trem flutuante (desktop)
 
 **Modo trem flutuante (só na versão desktop)**
