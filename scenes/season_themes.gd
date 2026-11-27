@@ -4,7 +4,7 @@ extends RefCounted
 ##
 ## Cada estação do Balance aponta para um tema pelo campo "theme". O tema vale
 ## a partir da chegada na estação. O mundo é pós-apocalíptico; cada região tem
-## uma cara própria (referências: The Last of Us, Mad Max, NieR: Automata):
+## uma cara própria:
 ##
 ##   inicio   Estação Inicial      pátio industrial enferrujado ao amanhecer, cinzas
 ##   tomada   Cidade Tomada        cidade em ruínas coberta de mato, carros largados, esporos

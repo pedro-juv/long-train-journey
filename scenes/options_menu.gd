@@ -12,6 +12,7 @@ extends CanvasLayer
 ##                           mantida ao reiniciar a partida)
 ##   Partir sozinho       -> GameController/GameState (save da partida; padrão desligado)
 ##   Atalho da caldeira   -> Hotkeys (user://settings.cfg; padrão Espaço)
+##   Notas da versão      -> PatchNotes (abre por cima do menu)
 ##   Trem flutuante       -> FloatMode (só no desktop; não aparece na Web)
 ##   Reiniciar partida    -> pede confirmação (clique duas vezes)
 
@@ -20,6 +21,7 @@ extends CanvasLayer
 @export var view_path: NodePath = NodePath("../TrainView")
 @export var hud_path: NodePath = NodePath("../HUD")
 @export var float_path: NodePath = NodePath("../FloatMode")
+@export var notes_path: NodePath = NodePath("../PatchNotes")
 
 ## Segundos para confirmar o reinício (segundo clique).
 const RESET_CONFIRM_SECONDS := 3.0
@@ -161,7 +163,25 @@ func _capture_hotkey(event: InputEvent) -> bool:
 
 
 ## "Trem flutuante" (desktop): fecha o menu e vira a janelinha.
+## Linha com "Notas da versão" e (no desktop) "Trem flutuante".
 func _add_float_button() -> void:
+	var row := HBoxContainer.new()
+	row.name = "ExtraRow"
+	row.add_theme_constant_override("separation", 8)
+	_reset_button.get_parent().add_child(row)
+	_reset_button.get_parent().move_child(row, _reset_button.get_index())
+	var notes := Button.new()
+	notes.name = "NotesButton"
+	notes.text = "Notas da versão"
+	notes.custom_minimum_size = Vector2(0, 40)
+	notes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	notes.add_theme_font_size_override("font_size", 14)
+	notes.focus_mode = Control.FOCUS_NONE
+	notes.pressed.connect(func():
+		var pn := get_node_or_null(notes_path)
+		if pn:
+			pn.open())
+	row.add_child(notes)
 	var float_mode := get_node_or_null(float_path)
 	if float_mode == null or not FloatMode.supported():
 		return
@@ -169,13 +189,14 @@ func _add_float_button() -> void:
 	b.name = "FloatButton"
 	b.text = "Trem flutuante (janelinha sobre o desktop)"
 	b.custom_minimum_size = Vector2(0, 40)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.size_flags_stretch_ratio = 1.6
 	b.add_theme_font_size_override("font_size", 14)
 	b.focus_mode = Control.FOCUS_NONE
 	b.pressed.connect(func():
 		close(true)
 		float_mode.enter())
-	_reset_button.get_parent().add_child(b)
-	_reset_button.get_parent().move_child(b, _reset_button.get_index())
+	row.add_child(b)
 
 
 func _input(event: InputEvent) -> void:

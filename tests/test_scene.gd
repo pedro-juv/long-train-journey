@@ -87,6 +87,7 @@ func _run() -> void:
 	var had_settings := FileAccess.file_exists(SETTINGS_PATH)
 	if had_settings:
 		DirAccess.copy_absolute(ProjectSettings.globalize_path(SETTINGS_PATH), ProjectSettings.globalize_path(SETTINGS_BACKUP))
+	PatchNotes.mark_seen()   # as notas da versão só abrem no teste delas
 
 	var now := Time.get_unix_time_from_system()
 
@@ -329,6 +330,35 @@ func _run() -> void:
 	_check(not get_tree().paused and not _menu().is_open, "reiniciar fecha o menu e despausa")
 	_check(_hud().get_node("%MessageLabel").text.contains("reiniciada"), "aviso de partida reiniciada")
 
+	# --- 5b. Notas da versão ---------------------------------------------------
+	print("Notas da versão")
+	var ncfg := ConfigFile.new()
+	ncfg.load(SETTINGS_PATH)
+	ncfg.set_value("patch_notes", "last_seen", "0.0.0")
+	ncfg.save(SETTINGS_PATH)
+	await _open_game()
+	var pn: PatchNotes = _main.get_node("PatchNotes")
+	_check(pn.is_open and pn.get_node("Root").visible, "versão nova: as notas abrem sozinhas")
+	var ntext := pn._text.get_parsed_text()
+	_check(ntext.contains("Versão %s" % PatchNotes.current_version()) and ntext.contains("Versão 0.1.0"), "notas têm a versão atual e todas as anteriores")
+	_check(PatchNotesData.NOTES[0]["version"] == PatchNotes.current_version(), "a 1ª nota é a versão do projeto (%s)" % PatchNotes.current_version())
+	_check(PatchNotes.last_seen_version() == PatchNotes.current_version(), "versão fica marcada como vista")
+	_check(Hotkeys.stoke_key != KEY_NONE, "atalho continua salvo junto das notas")
+	await _press_esc()
+	_check(not pn.is_open and not _menu().is_open, "ESC fecha as notas (sem abrir o menu)")
+	await _open_game()
+	_check(not _main.get_node("PatchNotes").is_open, "não abre de novo na mesma versão")
+	_menu().open()
+	_menu().get_node("Root/Board/Margin/VBox/ExtraRow/NotesButton").pressed.emit()
+	_check(_main.get_node("PatchNotes").is_open and _menu().is_open, "botão Notas da versão no menu abre as notas por cima")
+	await _press_esc()
+	_check(not _main.get_node("PatchNotes").is_open and _menu().is_open, "ESC fecha as notas e volta ao menu")
+	_main.get_node("PatchNotes").get_node("Root").visible = true
+	_main.get_node("PatchNotes").is_open = true
+	_main.get_node("PatchNotes")._close_button.pressed.emit()
+	_check(not _main.get_node("PatchNotes").is_open, "botão Fechar fecha as notas")
+	_menu().close()
+
 	# --- 6. Modo trem flutuante (desktop) --------------------------------------
 	print("Modo trem flutuante")
 	g = _game()
@@ -337,7 +367,7 @@ func _run() -> void:
 	var fm: FloatMode = _main.get_node("FloatMode")
 	_check(FloatMode.supported(), "modo flutuante disponível no desktop")
 	_check(hud.get_node_or_null("FloatButton") != null, "botão FLUTUAR na HUD")
-	_check(_menu().get_node_or_null("Root/Board/Margin/VBox/FloatButton") != null, "opção Trem flutuante no menu")
+	_check(_menu().get_node_or_null("Root/Board/Margin/VBox/ExtraRow/FloatButton") != null, "opção Trem flutuante no menu")
 	g.state.stock.add(5000.0)
 	var state_before: GameState = g.state
 	var dist_before: float = g.state.train.distance_m
@@ -406,7 +436,7 @@ func _run() -> void:
 	_menu().open()
 	await get_tree().create_timer(1.6, true).timeout   # a placa termina de balançar
 	var board_home: Vector2 = board.position
-	_menu().get_node("Root/Board/Margin/VBox/FloatButton").pressed.emit()
+	_menu().get_node("Root/Board/Margin/VBox/ExtraRow/FloatButton").pressed.emit()
 	await get_tree().process_frame
 	_check(fm.active and not _menu().is_open and not get_tree().paused, "opção do menu liga o modo flutuante e despausa")
 	await _press_esc()

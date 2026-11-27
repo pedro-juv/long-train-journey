@@ -11,9 +11,9 @@ __pycache__/
 /build/
 /export/
 
-# Documentos de design (privados) — remova esta linha para publicar os .md
+# Documentos (privados, inclusive o CHANGELOG.md): não vão para o Git.
+# As notas para o jogador ficam em scenes/patch_notes_data.gd.
 *.md
-!CHANGELOG.md
 
 # Gerado pelo jogar-web.ps1
 build_info.txt

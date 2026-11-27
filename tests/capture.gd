@@ -21,6 +21,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var game := _main.get_node("Game")
 	var view := _main.get_node("TrainView")
+	_main.get_node("PatchNotes").close()   # pode abrir sozinha (versão nova)
 	for t in THEMES:
 		var station: int = t[1]
 		if station >= 0:
@@ -75,6 +76,12 @@ func _ready() -> void:
 		await get_tree().process_frame
 	get_viewport().get_texture().get_image().save_png(out.path_join("menu.png"))
 	print("capturado: menu")
+	_main.get_node("PatchNotes").open()
+	for i in 30:
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(out.path_join("notas.png"))
+	print("capturado: notas")
+	_main.get_node("PatchNotes").close()
 	_main.get_node("OptionsMenu").close()
 	SaveManager.delete_save()
 	get_tree().quit()

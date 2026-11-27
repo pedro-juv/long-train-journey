@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://c3main0prototipo"]
+[gd_scene load_steps=8 format=3 uid="uid://c3main0prototipo"]
 
 [ext_resource type="Script" path="res://game/game_controller.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/train_view.tscn" id="2_train"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scenes/audio_director.gd" id="4_audio"]
 [ext_resource type="PackedScene" path="res://scenes/options_menu.tscn" id="5_options"]
 [ext_resource type="Script" path="res://scenes/float_mode.gd" id="6_float"]
+[ext_resource type="Script" path="res://scenes/patch_notes.gd" id="7_notes"]
 
 [node name="Main" type="Node"]
 
@@ -27,3 +28,6 @@ train_view_path = NodePath("../TrainView")
 
 [node name="FloatMode" type="Node" parent="."]
 script = ExtResource("6_float")
+
+[node name="PatchNotes" type="CanvasLayer" parent="."]
+script = ExtResource("7_notes")
