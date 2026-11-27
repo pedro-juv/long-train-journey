@@ -55,8 +55,11 @@ signal maintenance_finished()
 
 ## Resumo do progresso offline ao abrir o jogo.
 ## { "seconds", "elapsed_real", "stock_delta", "distance", "stations": [índices],
-##   "failures", "downtime", "auto_repairs", "auto_cost", "waiting_at_station" }
+##   "failures", "downtime", "auto_repairs", "auto_cost", "waiting_at_station", "waiting_station" }
 signal offline_summary(summary: Dictionary)
 
 ## Jogo carregado ou reiniciado (HUD deve sincronizar tudo).
 signal game_loaded()
+
+## O atalho de teclado de "Atiçar a caldeira" mudou (menu de opções).
+signal hotkeys_changed()

@@ -30,6 +30,10 @@ var state: State = State.ACCELERATING
 var base_speed: float
 var speed_factor: float
 var speed_exponent: float
+## Acima de `soft_knee` de produção, a velocidade cresce com o expoente
+## `soft_exponent` (menor): as regiões finais não viram um borrão.
+var soft_knee: float = INF
+var soft_exponent: float = 0.2
 ## Multiplicador de velocidade vindo dos reforços das peças (1.0 = sem bônus).
 var speed_multiplier: float = 1.0
 ## Segundos para ir de parado ao cruzeiro.
@@ -49,7 +53,13 @@ func _init(p_base_speed: float, p_speed_factor: float, p_speed_exponent: float) 
 
 ## Velocidade de cruzeiro (m/s) para uma produção, sem o impulso da caldeira.
 func speed_for_production(production_per_second: float) -> float:
-	return (base_speed + speed_factor * pow(maxf(production_per_second, 0.0), speed_exponent)) * speed_multiplier
+	var p := maxf(production_per_second, 0.0)
+	var term: float
+	if p <= soft_knee:
+		term = pow(p, speed_exponent)
+	else:
+		term = pow(soft_knee, speed_exponent) * pow(p / soft_knee, soft_exponent)
+	return (base_speed + speed_factor * term) * speed_multiplier
 
 
 func is_stopped() -> bool:

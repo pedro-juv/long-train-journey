@@ -63,6 +63,22 @@ func _press_esc() -> void:
 	await get_tree().process_frame
 
 
+## Aperta e solta uma tecla física (echo = repetição de tecla segurada).
+func _press_key(key: Key, echo: bool = false) -> void:
+	var ev := InputEventKey.new()
+	ev.physical_keycode = key
+	ev.keycode = key
+	ev.pressed = true
+	ev.echo = echo
+	Input.parse_input_event(ev)
+	await get_tree().process_frame
+	var up := ev.duplicate()
+	up.pressed = false
+	up.echo = false
+	Input.parse_input_event(up)
+	await get_tree().process_frame
+
+
 func _run() -> void:
 	print("== Teste da cena principal (Fase 1A + 1B) ==")
 	var had_save := FileAccess.file_exists(SAVE_PATH)
@@ -74,28 +90,35 @@ func _run() -> void:
 
 	var now := Time.get_unix_time_from_system()
 
-	# --- 1. Save v3 com 2 horas fora -----------------------------------------
-	_write_save({"save_version": 3, "saved_at": now - 7200.0, "stock": 500.0, "tank": 100.0,
+	# --- 1. Save v3 com 10 horas fora ----------------------------------------
+	_write_save({"save_version": 3, "saved_at": now - 36000.0, "stock": 500.0, "tank": 100.0,
 		"producers": {"foguista": 12, "carvoaria": 3, "mina": 0},
 		"upgrades_purchased": ["click_1"], "distance_m": 4000.0})
 	await _open_game()
 	var g := _game()
 	var hud := _hud()
-	print("Carregamento e offline (2 h fora)")
+	print("Carregamento e offline (10 h fora)")
 	_check(g.state.producer("foguista").level == 12 and g.state.producer("carvoaria").level == 3, "níveis carregados")
 	_check(g.state.stock.amount > 500.0 + 50000.0, "estoque ganhou a produção offline (%s)" % NumFormat.amount(g.state.stock.amount))
 	_check(hud.get_node("%OfflinePopup").visible, "resumo offline aparece")
 	var text: String = hud.get_node("%OfflineText").text
-	_check(text.contains("Tempo fora: 2 h"), "resumo mostra o tempo fora")
-	_check(text.contains("Estações alcançadas: Cidade Tomada"), "resumo lista a estação alcançada offline")
-	_check(hud.get_node("%MessageLabel").text.contains("Cidade Tomada"), "chegada da estação alcançada offline aparece ao abrir (caminho B)")
-	_check(text.contains("esperou você"), "resumo avisa que o trem esperou na estação")
-	_check(g.state.train.distance_m >= 10500.0 and g.state.train.distance_m < 10520.0, "offline parou na Cidade Tomada e o trem segue ao abrir (%.0f m)" % g.state.train.distance_m)
+	_check(text.contains("Tempo fora: 10 h"), "resumo mostra o tempo fora")
+	_check(not text.contains("Estações alcançadas"), "offline não alcança estação nova")
+	_check(text.contains("parou antes da Estação Cidade Tomada"), "resumo avisa que o trem esperou antes da estação nova")
+	var wait_at: float = g.state.route.target_distance(1) - Balance.offline_wait_distance_m
+	_check(absf(g.state.train.distance_m - wait_at) < 30.0, "offline parou antes da Cidade Tomada e segue ao abrir (%.0f m)" % g.state.train.distance_m)
+	_check(g.state.train.state != TrainMovement.State.AT_STATION, "ao abrir, o trem segue viagem")
 	var view := _main.get_node("TrainView")
 	var audio := _main.get_node("AudioDirector")
+	_check(view._theme_id == "tomada", "o trecho até a Cidade Tomada já é a região dela (%s)" % view._theme_id)
+	# A chegada na estação nova acontece com o jogador presente
+	g.state.train.distance_m = g.state.route.target_distance(1) - 0.2
+	g.state.train.current_speed = 2.0
+	await get_tree().create_timer(1.0).timeout
+	_check(hud.get_node("%MessageLabel").text.contains("Cidade Tomada"), "chegada na Cidade Tomada aparece ao vivo")
 	_check(view._theme_id == "tomada", "cenário no tema da Cidade Tomada (%s)" % view._theme_id)
 	_check(audio.current_music_theme() == "tomada", "música na variação da Cidade Tomada (%s)" % audio.current_music_theme())
-	_check(g.state.train.state == TrainMovement.State.AT_STATION and g.state.station_stop_left > 0.0, "ao abrir, o trem está parado na plataforma da Cidade Tomada")
+	_check(g.state.train.state == TrainMovement.State.AT_STATION and g.state.station_stop_left > 0.0, "o trem para na plataforma da Cidade Tomada")
 	_check(hud.get_node("%StateLabel").visible and hud.get_node("%StateLabel").text.contains("Parado em Cidade Tomada"), "estado mostra a parada na estação")
 	g.set_stop_at_stations(false)
 	_check(not _menu().get_node("%StopSwitch").on, "chave Parada automática do menu acompanha a preferência")
@@ -104,14 +127,14 @@ func _run() -> void:
 	g.state.train.current_speed = g.state.cruise_speed()
 	await get_tree().create_timer(0.3).timeout
 	_check(g.state.train.state != TrainMovement.State.AT_STATION, "com o botão desligado o trem passa direto pelo Deserto de Ferrugem")
-	_check(view._theme_id == "deserto" and view._prev_theme_id == "tomada" and view._blend < 1.0, "chegar ao Deserto de Ferrugem inicia a transição de tema")
-	_check(audio.current_music_theme() == "deserto", "música troca para a variação do Deserto de Ferrugem")
+	_check(view._theme_id == "ruinas" and view._prev_theme_id == "deserto" and view._blend < 1.0, "passar pelo Deserto de Ferrugem entra na região das Ruínas Brancas (%s)" % view._theme_id)
+	_check(audio.current_music_theme() == "ruinas", "música troca para a variação das Ruínas Brancas")
 	hud.get_node("%OfflineOk").pressed.emit()
 	_check(not hud.get_node("%OfflinePopup").visible, "botão fecha o resumo")
 
 	print("Loja")
 	var rows: Dictionary = hud._producer_rows
-	_check(rows.size() == 3, "três linhas de produtores")
+	_check(rows.size() == 8, "oito linhas de produtores")
 	_check(not rows["mina"]["button"].disabled or g.state.stock.amount < 4000.0, "Mina liberada (1ª estação já alcançada)")
 	_check(rows["foguista"]["info"].text.contains("nv 12"), "linha do Foguista mostra o nível (%s)" % rows["foguista"]["info"].text)
 	_check(rows["foguista"]["detail"].text.contains("Nível 25"), "mostra o próximo marco (%s)" % rows["foguista"]["detail"].text)
@@ -137,6 +160,38 @@ func _run() -> void:
 	_check(absf(g.state.stock.amount - clicks_before - expected_click) < 0.01 * expected_click + 1.0, "clique = (1 + 2%% da produção) x2 com a 1ª melhoria (%.1f)" % expected_click)
 	_check(g.state.stoke > stoke_before, "clique atiça a caldeira")
 
+	print("Atalho da caldeira (teclado)")
+	var key_saved := Hotkeys.stoke_key
+	var clicks := [0]
+	var count_click := func(): clicks[0] += 1
+	EventBus.coal_clicked.connect(count_click)
+	Hotkeys.set_stoke_key(KEY_SPACE)
+	await _press_key(KEY_SPACE)
+	_check(clicks[0] == 1, "Espaço atiça a caldeira (padrão)")
+	await _press_key(KEY_SPACE, true)
+	_check(clicks[0] == 1, "segurar a tecla não repete o clique")
+	_check(hud.get_node("%SpeedHint").text.contains("Espaço"), "dica mostra o atalho (%s)" % hud.get_node("%SpeedHint").text)
+	var m := _menu()
+	m.open()
+	var hk: Button = m.get_node("%Root").find_child("HotkeyButton", true, false)
+	_check(hk != null and hk.text == "Espaço", "menu mostra o atalho atual")
+	hk.pressed.emit()
+	await _press_key(KEY_F)
+	_check(Hotkeys.stoke_key == KEY_F and hk.text == "F" and m.is_open, "menu troca o atalho para F sem fechar")
+	hk.pressed.emit()
+	await _press_key(KEY_ESCAPE)
+	_check(Hotkeys.stoke_key == KEY_F and m.is_open, "ESC cancela a troca sem fechar o menu")
+	_check(clicks[0] == 1, "com o menu aberto o atalho não atiça")
+	m.close(true)
+	await _press_key(KEY_SPACE)
+	_check(clicks[0] == 1, "Espaço deixa de atiçar")
+	await _press_key(KEY_F)
+	_check(clicks[0] == 2, "F atiça a caldeira")
+	_check(hud.get_node("%SpeedHint").text.contains("Clique ou F"), "dica atualizada")
+	EventBus.coal_clicked.disconnect(count_click)
+	Hotkeys.set_stoke_key(key_saved)
+	hud._refresh_stoke_hint()
+
 	print("Save")
 	g.save_now()
 	var saved: Dictionary = SaveManager.load_game()
@@ -148,7 +203,7 @@ func _run() -> void:
 	_check(train_tab.visible, "aba Trem visível depois da Estação Inicial")
 	train_tab.pressed.emit()
 	var crow: Dictionary = hud._component_rows
-	_check(crow.size() == 6, "seis peças listadas")
+	_check(crow.size() == 8, "oito peças listadas")
 	_check(crow["rodas"]["title"].text.contains("Rodas de ferro fundido"), "rodas de ferro fundido (%s)" % crow["rodas"]["title"].text)
 	_check(crow["chamine"]["title"].text.contains("bloqueado"), "Chaminé bloqueada até o Ruínas Brancas")
 	_check(not crow["rodas"]["auto"].visible, "manutenção automática escondida antes do Ruínas Brancas")
@@ -174,7 +229,7 @@ func _run() -> void:
 	_check(hud.get_node("%StateLabel").text.contains("Em manutenção (Pistões)"), "estado mostra a manutenção (%s)" % hud.get_node("%StateLabel").text)
 	_check(hud.get_node("%MaintenanceBar").visible, "barra de manutenção visível")
 	hud.get_node("%ProductionTab").pressed.emit()
-	_check(hud._producer_rows.size() == 3, "volta para a aba Produção")
+	_check(hud._producer_rows.size() == 8, "volta para a aba Produção")
 
 	# --- 2. Três dias fora: limite de 24 h -----------------------------------
 	_write_save({"save_version": 3, "saved_at": now - 3 * 86400.0, "stock": 0.0, "tank": 100.0,
@@ -185,13 +240,13 @@ func _run() -> void:
 	_check(text.contains("contamos até 24 h"), "resumo avisa que contou só 24 h (%s)" % text.get_slice("\n", 0))
 
 	# --- 2b. Ruínas Brancas: manutenção automática e resumo de paradas ---------------
-	_write_save({"save_version": 4, "saved_at": now - 3600.0, "stock": 1e9, "tank": 100.0,
+	_write_save({"save_version": 4, "saved_at": now - 86400.0, "stock": 1e9, "tank": 100.0,
 		"producers": {"foguista": 30, "carvoaria": 20}, "upgrades_purchased": [], "distance_m": 60000.0,
 		"components": {}})
 	await _open_game()
 	print("Ruínas Brancas: manutenção automática")
-	_check(_main.get_node("TrainView")._theme_id == "inverno", "1 h fora a partir do Ruínas Brancas: chega ao Ermo Gelado (tema %s)" % _main.get_node("TrainView")._theme_id)
 	text = _hud().get_node("%OfflineText").text
+	_check(_main.get_node("TrainView")._theme_id == "inverno" and text.contains("parou antes da Estação Ermo Gelado"), "24 h fora depois das Ruínas Brancas: espera antes do Ermo Gelado, na região dele (tema %s)" % _main.get_node("TrainView")._theme_id)
 	_check(text.contains("paradas para manutenção"), "resumo offline mostra as paradas (%s)" % text.get_slice("\n", 3))
 	_hud().get_node("%TrainTab").pressed.emit()
 	var arow: Dictionary = _hud()._component_rows

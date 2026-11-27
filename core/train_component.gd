@@ -26,6 +26,9 @@ var auto_repairs: int = 0
 ## Quantas vezes a peça quebrou (só informativo).
 var failures: int = 0
 
+## Desgaste extra (regra da região) ou menor (melhorias); 1 = normal.
+var wear_multiplier: float = 1.0
+
 var _life_multiplier: float
 var _cost_growth: float
 
@@ -44,17 +47,17 @@ func _init(data: Dictionary, life_multiplier: float, cost_growth: float) -> void
 
 ## Vida atual (metros ou segundos), já com o reforço.
 func life() -> float:
-	return base_life * pow(_life_multiplier, level)
+	return base_life * pow(_life_multiplier, level) * float(material().get("life_mult", 1.0))
 
 
 ## Quanto de integridade se perde ao andar `meters` em `seconds` de movimento.
 func wear_amount(meters: float, seconds: float) -> float:
-	return (meters if wear_kind == Wear.DISTANCE else seconds) / life()
+	return (meters if wear_kind == Wear.DISTANCE else seconds) / life() * wear_multiplier
 
 
 ## Integridade perdida por segundo andando a `speed_mps` (para o offline).
 func wear_rate(speed_mps: float) -> float:
-	return (speed_mps if wear_kind == Wear.DISTANCE else 1.0) / life()
+	return (speed_mps if wear_kind == Wear.DISTANCE else 1.0) / life() * wear_multiplier
 
 
 func reinforce_cost() -> float:
@@ -63,6 +66,13 @@ func reinforce_cost() -> float:
 
 func material() -> Dictionary:
 	return materials[material_index]
+
+
+## Troca para o material de id `material_id` (se existir nesta peça).
+func set_material(material_id: String) -> void:
+	for i in materials.size():
+		if materials[i]["id"] == material_id:
+			material_index = i
 
 
 func material_name() -> String:

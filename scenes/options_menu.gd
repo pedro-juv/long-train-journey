@@ -10,6 +10,7 @@ extends CanvasLayer
 ##   Música / Efeitos     -> AudioDirector (user://settings.cfg)
 ##   Parada automática    -> GameController/GameState (save da partida;
 ##                           mantida ao reiniciar a partida)
+##   Atalho da caldeira   -> Hotkeys (user://settings.cfg; padrão Espaço)
 ##   Trem flutuante       -> FloatMode (só no desktop; não aparece na Web)
 ##   Reiniciar partida    -> pede confirmação (clique duas vezes)
 
@@ -40,6 +41,9 @@ var _board_home: Vector2 = Vector2.ZERO
 ## na posição; ao abrir, a placa volta a estas margens e recentraliza mesmo
 ## que a janela tenha mudado de tamanho (ex.: modo trem flutuante).
 var _board_offsets: Array = []
+## Botão do atalho de "Atiçar a caldeira" e se está esperando a tecla nova.
+var _hotkey_button: Button
+var _waiting_key: bool = false
 
 
 func _ready() -> void:
@@ -52,6 +56,7 @@ func _ready() -> void:
 	_stop_switch.toggled.connect(_on_stop_toggled)
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_back_button.pressed.connect(close)
+	_add_hotkey_row()
 	_add_float_button()
 	EventBus.stop_at_stations_changed.connect(func(on: bool): _stop_switch.set_on_no_signal(on, is_open))
 	_board.draw.connect(_draw_board)
@@ -60,6 +65,67 @@ func _ready() -> void:
 		view.theme_changed.connect(_apply_skin)
 	_apply_skin(SeasonThemes.DEFAULT)
 	_sync_switches(false)
+
+
+## Linha "Atalho da caldeira": clique no botão e aperte a tecla nova.
+func _add_hotkey_row() -> void:
+	Hotkeys.ensure_loaded()
+	var row := HBoxContainer.new()
+	row.name = "HotkeyRow"
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.alignment = BoxContainer.ALIGNMENT_CENTER
+	var label := Label.new()
+	label.text = "Atalho: atiçar a caldeira"
+	label.add_theme_font_size_override("font_size", 18)
+	var hint := Label.new()
+	hint.text = "Clique e aperte a tecla. Delete remove.\nO clique no botão continua valendo."
+	hint.add_theme_font_size_override("font_size", 12)
+	text.add_child(label)
+	text.add_child(hint)
+	_hotkey_button = Button.new()
+	_hotkey_button.name = "HotkeyButton"
+	_hotkey_button.custom_minimum_size = Vector2(170, 44)
+	_hotkey_button.add_theme_font_size_override("font_size", 16)
+	_hotkey_button.focus_mode = Control.FOCUS_NONE
+	_hotkey_button.pressed.connect(_on_hotkey_pressed)
+	row.add_child(text)
+	row.add_child(_hotkey_button)
+	_reset_button.get_parent().add_child(row)
+	_reset_button.get_parent().move_child(row, _reset_button.get_index())
+	_refresh_hotkey_button()
+
+
+func _refresh_hotkey_button() -> void:
+	if _waiting_key:
+		_hotkey_button.text = "Aperte uma tecla..."
+	else:
+		var key_name := Hotkeys.stoke_key_name()
+		_hotkey_button.text = key_name if key_name != "" else "Nenhum"
+
+
+func _on_hotkey_pressed() -> void:
+	_waiting_key = not _waiting_key
+	_refresh_hotkey_button()
+
+
+## Recebe a tecla nova (ESC cancela; Delete/Backspace removem o atalho).
+func _capture_hotkey(event: InputEvent) -> bool:
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo:
+		return false
+	var code: Key = key.physical_keycode if key.physical_keycode != KEY_NONE else key.keycode
+	match code:
+		KEY_ESCAPE:
+			pass
+		KEY_DELETE, KEY_BACKSPACE:
+			Hotkeys.set_stoke_key(KEY_NONE)
+		_:
+			Hotkeys.set_stoke_key(code)
+	_waiting_key = false
+	_refresh_hotkey_button()
+	EventBus.hotkeys_changed.emit()
+	return true
 
 
 ## "Trem flutuante" (desktop): fecha o menu e vira a janelinha.
@@ -81,6 +147,10 @@ func _add_float_button() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _waiting_key and is_open:
+		if _capture_hotkey(event):
+			get_viewport().set_input_as_handled()
+		return
 	var float_mode := get_node_or_null(float_path)
 	if float_mode and float_mode.active:
 		return   # na janelinha, ESC volta à janela normal (FloatMode)
@@ -139,6 +209,9 @@ func close(instant: bool = false) -> void:
 	if not is_open:
 		return
 	is_open = false
+	if _waiting_key:
+		_waiting_key = false
+		_refresh_hotkey_button()
 	get_tree().paused = false
 	if _tween:
 		_tween.kill()
@@ -231,6 +304,10 @@ func _apply_skin(theme_id: String) -> void:
 	_back_button.add_theme_stylebox_override("normal", HudSkin.button_style(accent.darkened(0.25)))
 	_back_button.add_theme_stylebox_override("hover", HudSkin.button_style(accent.darkened(0.1)))
 	_back_button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	if _hotkey_button:
+		_hotkey_button.add_theme_stylebox_override("normal", HudSkin.button_style(HudSkin.WINE_LIGHT))
+		_hotkey_button.add_theme_stylebox_override("hover", HudSkin.button_style(HudSkin.WINE_LIGHT.lightened(0.12)))
+		_hotkey_button.add_theme_stylebox_override("pressed", HudSkin.button_style(HudSkin.WINE, true))
 	for s in [_music_switch, _sfx_switch, _stop_switch]:
 		s.accent = accent
 		s.queue_redraw()

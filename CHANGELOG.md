@@ -7,6 +7,53 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.8.1] — 2026-11-26 · Atalho da caldeira
+
+- Espaço atiça a caldeira (mesmo efeito do clique no botão, que continua
+  valendo). Segurar a tecla não repete: cada aperto vale um clique
+- A tecla pode ser trocada no menu de opções (ESC), em "Atalho: atiçar a
+  caldeira"; Delete remove o atalho. A escolha fica salva
+- A dica embaixo do botão mostra o atalho atual
+
+## [0.8.0] — 2026-11-26 · Regiões 6 a 10
+
+**Cinco regiões novas** (cenários originais, só inspirados nas referências)
+- Galerias de Pedra: túnel de pedra em arcos, lampiões e pouca luz
+- Vila Alagada: vila de beirais curvos semi-submersa; o trem corre na água
+- Fossa de Latão: túneis metálicos submersos, escotilhas, algas e bolhas
+- Céu de Latão: nuvens, grandes vãos e ilhas flutuantes; trilho em ponte
+- Mar de Cinzas: cinzas, rachaduras de lava e um colosso ao fundo
+- A região agora é a do trecho até a próxima estação: o cenário troca quando o
+  trem sai da estação anterior
+- HUD com cor e ornamentos de cada região nova; música ainda provisória
+
+**Economia**
+- Produtores novos: Veio Profundo, Barcaça Carvoeira, Draga do Fundo, Doca de
+  Dirigíveis e Forja de Brasa, cada um com seu equipamento
+- Melhoria de produção em cada estação nova e duas pás novas para o clique
+- Cada região tem uma regra (ex.: nas Galerias a chaminé gasta o dobro; no Céu
+  o trem anda 15% mais rápido, mas os engates gastam mais), avisada na partida
+- Melhorias que compensam as regras (Exaustor, Defletor, Casco, Estabilizadores)
+- Materiais novos (aço, bronze naval, aço naval): a peça dura o dobro, mas a
+  manutenção automática precisa ser comprada de novo
+- Peças novas: Vedação e Filtro
+- Trechos muito mais longos: jogando ativo, a rota inteira leva cerca de 18 h
+- A velocidade cresce mais devagar nas regiões finais; distâncias e
+  velocidades grandes aparecem com separador de milhar
+
+## [0.7.0] — 2026-11-26 · Offline mais controlado
+
+**Progresso com o jogo fechado**
+- O trem anda bem menos: só 10% do tempo fora (10 horas fora = 1 hora de
+  viagem). As peças gastam na mesma proporção
+- A produção offline vale 80% (antes 100%); o limite de 24 horas continua
+- Estações novas não passam mais offline: o trem para 250 m antes da próxima
+  estação que você ainda não conhece e espera. Ao abrir, ele segue e chega com
+  você vendo (placa, região nova, recompensa)
+- Estações já conhecidas poderão ser atravessadas offline (preparação para o
+  futuro reset): o jogo agora salva a estação mais longe que você já alcançou
+- Resumo "Enquanto você esteve fora" avisa quando o trem está esperando
+
 ## [0.6.0] — 2026-11-21 · Regiões pós-apocalípticas
 
 **As estações do ano viraram regiões devastadas** (referências: The Last of

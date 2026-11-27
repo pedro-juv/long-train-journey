@@ -57,6 +57,8 @@ const C_BRASS := HudSkin.BRASS
 const C_CREAM := HudSkin.CREAM
 
 var _message_timer: float = 0.0
+## Região cuja regra já foi avisada (o aviso sai na partida rumo a ela).
+var _announced_region: String = ""
 var _shop_timer: float = 0.0
 
 ## Linhas da loja: id do produtor -> { "info": Label, "detail": Label, "button": Button }
@@ -101,6 +103,8 @@ func _ready() -> void:
 	_train_tab.pressed.connect(_select_tab.bind("trem"))
 
 	_click_button.pressed.connect(_on_click_pressed)
+	EventBus.hotkeys_changed.connect(_refresh_stoke_hint)
+	_refresh_stoke_hint()
 	EventBus.producer_bought.connect(_on_producer_bought)
 	_offline_ok.pressed.connect(func(): _offline_popup.visible = false)
 	_options_button.pressed.connect(_on_options_pressed)
@@ -163,6 +167,7 @@ func _process(delta: float) -> void:
 		_click_button.text = "ATIÇAR A CALDEIRA\n+%s carvão" % NumFormat.rate(_state().click_value())
 		_refresh_maintenance_status()
 		_refresh_state_label()
+		_check_region_rule()
 	var stoke := _state().stoke
 	_pressure_gauge.set_reading(stoke, "+%d%%" % roundi(_state().stoke_bonus() * 100.0))
 
@@ -443,7 +448,23 @@ func _on_upgrade_purchased(id: String) -> void:
 		_show_message("Comprado: %s." % entry["name"])
 
 
+## Avisa a regra da região nova quando o trem sai da estação rumo a ela
+## (ao carregar o jogo não avisa: a região já é conhecida).
+func _check_region_rule() -> void:
+	var st := _state()
+	if st.station_stop_left > 0.0:
+		return
+	var region := st.current_region()
+	if region == _announced_region:
+		return
+	_announced_region = region
+	var text := str(st.region_effect().get("text", ""))
+	if text != "":
+		_show_message(text)
+
+
 func _on_game_loaded() -> void:
+	_announced_region = _state().current_region()
 	_rebuild_shop()
 	_refresh_station(_state().train.distance_m)
 	_message_label.text = ""
@@ -476,8 +497,9 @@ func _on_offline_summary(summary: Dictionary) -> void:
 		lines.append("%d paradas para manutenção (%s)" % [int(summary["failures"]), NumFormat.duration(float(summary["downtime"]))])
 	if int(summary.get("auto_repairs", 0)) > 0:
 		lines.append("%d consertos automáticos (%s carvão)" % [int(summary["auto_repairs"]), NumFormat.amount(float(summary["auto_cost"]))])
-	if summary.get("waiting_at_station", false) and not names.is_empty():
-		lines.append("O trem chegou à %s e esperou você para seguir viagem." % _station_title(names[-1]))
+	var waiting := int(summary.get("waiting_station", -1))
+	if waiting >= 0:
+		lines.append("O trem parou antes da %s e esperou você para chegar." % _station_title(_state().route.station_name(waiting)))
 	_offline_text.text = "\n".join(lines)
 	_offline_popup.visible = not floating
 	_pop_in(_offline_popup)
@@ -621,6 +643,18 @@ func _refresh_shop() -> void:
 
 
 func _effect_text(entry: Dictionary) -> String:
+	match entry["effect"]:
+		"wear_mult":
+			var names: Array[String] = []
+			for cid in entry["target"]:
+				names.append(_state().component(cid).display_name)
+			return "%s gastam %d%% menos" % [" e ".join(names), roundi((1.0 - float(entry["value"])) * 100.0)]
+		"material":
+			var comp := _state().component(entry["target"])
+			for m in comp.materials:
+				if m["id"] == entry["value"]:
+					return "%s duram %sx mais (a manutenção automática volta a ser comprada)" % [comp.display_name, NumFormat.rate(float(m.get("life_mult", 1.0)))]
+			return ""
 	var value := float(entry["value"])
 	match entry["effect"]:
 		"producer_mult":
@@ -657,6 +691,20 @@ func _show_message(text: String) -> void:
 # ---------------------------------------------------------------------------
 # Efeitos (só apresentação)
 # ---------------------------------------------------------------------------
+
+## Atalho de teclado (padrão Espaço) = um clique em "Atiçar a caldeira".
+## Segurar a tecla não repete: cada aperto vale um clique.
+func _unhandled_input(event: InputEvent) -> void:
+	if Hotkeys.is_stoke_event(event):
+		_on_click_pressed()   # já dá o "aperto" visual no botão
+		get_viewport().set_input_as_handled()
+
+
+## Dica embaixo do botão mostra o atalho atual.
+func _refresh_stoke_hint() -> void:
+	var key_name := Hotkeys.stoke_key_name()
+	%SpeedHint.text = "Clique ou %s: carvão + pressão na caldeira" % key_name if key_name != "" else "Clique: carvão + pressão na caldeira"
+
 
 func _on_click_pressed() -> void:
 	_game.click_coal()

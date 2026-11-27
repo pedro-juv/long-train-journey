@@ -27,6 +27,13 @@ var stoke: float = 0.0
 var stop_at_stations: bool = true
 ## Segundos que faltam parado na estação atual (0 = não está parado).
 var station_stop_left: float = 0.0
+## Quantas estações o jogador já alcançou na viagem mais longa (salvo; um
+## futuro reset volta o trem, mas não esquece as estações conhecidas).
+var best_station_count: int = 0
+## Regra da região atual (Balance.region_effects): multiplicador de produção.
+var region_production: float = 1.0
+## Peça -> multiplicador de desgaste vindo das melhorias (wear_mult).
+var _wear_upgrades: Dictionary = {}
 
 var _producer_by_id: Dictionary = {}
 
@@ -40,6 +47,8 @@ func _init(p_config) -> void:
 		_producer_by_id[p.id] = p
 	upgrades = Upgrades.new(config.upgrades)
 	train = TrainMovement.new(config.train_base_speed, config.train_speed_factor, config.train_speed_exponent)
+	train.soft_knee = config.train_speed_soft_knee
+	train.soft_exponent = config.train_speed_soft_exponent
 	train.accel_seconds = config.train_accel_seconds
 	train.brake_seconds = config.train_brake_seconds
 	train.station_brake_seconds = config.train_station_brake_seconds
@@ -63,12 +72,12 @@ func total_production() -> float:
 	var total := 0.0
 	for p in producers:
 		total += p.output_per_second()
-	return total * global_multiplier
+	return total * global_multiplier * region_production
 
 
 ## Produção de um produtor com o multiplicador global (para a loja).
 func producer_production(id: String) -> float:
-	return producer(id).output_per_second() * global_multiplier
+	return producer(id).output_per_second() * global_multiplier * region_production
 
 
 ## Carvão por clique: parte fixa + fração da produção, vezes as pás.
@@ -105,7 +114,7 @@ func can_buy_producer(id: String) -> bool:
 ## Produção total se o produtor `id` subir um nível (para a loja).
 func production_after_level_up(id: String) -> float:
 	var p := producer(id)
-	return total_production() + (p.output_at_level(p.level + 1) - p.output_per_second()) * global_multiplier
+	return total_production() + (p.output_at_level(p.level + 1) - p.output_per_second()) * global_multiplier * region_production
 
 
 ## A condição "requires" da melhoria foi cumprida? (aparece na loja)
@@ -288,6 +297,8 @@ func tick(delta: float) -> Dictionary:
 	if maintenance.is_stopped() and not failing:
 		train.state = TrainMovement.State.BRAKING  # começou a frear agora
 	result["stations"] = route.update(train.distance_m)
+	if not result["stations"].is_empty():
+		_apply_region()   # entrou numa região nova
 	if not result["stations"].is_empty() and is_finite(stop_at) and train.distance_m >= stop_at:
 		station_stop_left = config.station_stop_seconds
 		train.hold(TrainMovement.State.AT_STATION, cruise)
@@ -298,32 +309,39 @@ func tick(delta: float) -> Dictionary:
 
 ## Aplica `elapsed_seconds` de progresso offline. Retorna o resumo:
 ## { "seconds", "stock_delta", "distance", "stations": [índices], "failures",
-##   "downtime", "auto_repairs", "auto_cost", "waiting_at_station" }.
+##   "downtime", "auto_repairs", "auto_cost", "waiting_at_station",
+##   "waiting_station" (índice da estação nova esperada, ou -1) }.
 ## Offline não há inércia: o trem anda em cruzeiro (sem impulso da caldeira).
 func apply_offline(elapsed_seconds: float) -> Dictionary:
 	var seconds := OfflineProgress.clamp_elapsed(elapsed_seconds, config.offline_max_seconds)
-	var effective: float = seconds * config.offline_efficiency
 	var stock_before := stock.amount
+	# Movimento reduzido: o trem anda só uma fração do tempo fora (o tempo
+	# simulado encolhe); a produção, um pouco menor, vale pelo tempo todo.
+	var move_frac := clampf(config.offline_movement_efficiency, 0.001, 1.0)
+	var coal_rate: float = total_production() * config.offline_production_efficiency / move_frac
 
-	# Caminho B: no máximo até a próxima estação.
+	# Estação nova não passa offline: espera um pouco antes dela.
 	var max_distance := INF
-	if config.offline_stop_at_next_station and not route.is_complete():
-		max_distance = maxf(0.0, route.target_distance(route.reached_count) - train.distance_m)
+	var known := known_station_count()
+	var waiting_for := -1
+	if config.offline_stop_before_new_station and known < route.station_count():
+		waiting_for = known
+		max_distance = maxf(0.0, route.target_distance(known) - config.offline_wait_distance_m - train.distance_m)
 
-	var result := OfflineProgress.simulate(effective, total_production(), stock.amount, train, maintenance, route, max_distance)
+	var result := OfflineProgress.simulate(seconds * move_frac, total_production(), stock.amount, train,
+		maintenance, route, max_distance, coal_rate)
 
 	stock.amount = maxf(0.0, stock.amount + float(result["coal_delta"]))
 	var distance := float(result["distance"])
 	if is_finite(max_distance) and distance >= max_distance - 0.001:
-		distance = max_distance  # chega exatamente na estação
+		distance = max_distance  # para exatamente no ponto de espera
 	train.distance_m += distance
 	var reached := route.update(train.distance_m)
-	# Ao abrir, o trem parte do zero (acelerando) ou está parado na plataforma.
+	_apply_region()
+	# Ao abrir, o trem parte do zero e segue viagem.
 	train.current_speed = 0.0
 	train.state = TrainMovement.State.ACCELERATING
-	if not reached.is_empty() and stop_at_stations:
-		station_stop_left = config.station_stop_seconds
-		train.state = TrainMovement.State.AT_STATION
+	var waiting: bool = result["waiting_at_station"] or (waiting_for >= 0 and is_equal_approx(max_distance, 0.0))
 	return {
 		"seconds": seconds,
 		"stock_delta": stock.amount - stock_before,
@@ -333,8 +351,15 @@ func apply_offline(elapsed_seconds: float) -> Dictionary:
 		"downtime": result["downtime"],
 		"auto_repairs": result["auto_repairs"],
 		"auto_cost": result["auto_cost"],
-		"waiting_at_station": result["waiting_at_station"],
+		"waiting_at_station": waiting,
+		"waiting_station": waiting_for if waiting else -1,
 	}
+
+
+## Estações que o jogador já conhece: a mais longe que ele alcançou em
+## qualquer viagem (vale também depois de um futuro reset).
+func known_station_count() -> int:
+	return maxi(best_station_count, route.reached_count)
 
 
 # ---------------------------------------------------------------------------
@@ -347,25 +372,55 @@ func _recalculate_multipliers() -> void:
 	global_multiplier = 1.0
 	click_multiplier = 1.0
 	maintenance.time_multiplier = 1.0
-	train.speed_multiplier = 1.0 + reinforce_speed_bonus()
+	_wear_upgrades = {}
 	for p in producers:
 		p.upgrade_multiplier = 1.0
 	for id in upgrades.purchased_ids():
 		var entry := upgrades.get_entry(id)
-		var value := float(entry["value"])
 		match entry["effect"]:
 			"global_mult":
-				global_multiplier *= value
+				global_multiplier *= float(entry["value"])
 			"click_mult":
-				click_multiplier *= value
+				click_multiplier *= float(entry["value"])
 			"maintenance_time_mult":
-				maintenance.time_multiplier *= value
+				maintenance.time_multiplier *= float(entry["value"])
 			"producer_mult":
 				var target := producer(entry["target"])
 				if target:
-					target.upgrade_multiplier *= value
+					target.upgrade_multiplier *= float(entry["value"])
+			"wear_mult":
+				for cid in entry["target"]:
+					_wear_upgrades[cid] = float(_wear_upgrades.get(cid, 1.0)) * float(entry["value"])
+			"material":
+				var comp := component(entry["target"])
+				if comp:
+					comp.set_material(str(entry["value"]))
 			_:
 				push_warning("GameState: efeito desconhecido '%s' em %s" % [entry["effect"], id])
+	_apply_region()
+
+
+## Tema da região em que o trem está (o do trecho até a próxima estação).
+func current_region() -> String:
+	var count := route.station_count()
+	if count == 0:
+		return ""
+	return str(route.stations[clampi(route.reached_count, 0, count - 1)].get("theme", ""))
+
+
+## Regra da região atual ({} quando a região não tem regra).
+func region_effect() -> Dictionary:
+	return config.region_effects.get(current_region(), {})
+
+
+## Aplica a regra da região: produção, velocidade e desgaste das peças.
+func _apply_region() -> void:
+	var fx := region_effect()
+	region_production = float(fx.get("production", 1.0))
+	train.speed_multiplier = (1.0 + reinforce_speed_bonus()) * float(fx.get("speed", 1.0))
+	var wear: Dictionary = fx.get("wear", {})
+	for c in maintenance.components:
+		c.wear_multiplier = float(wear.get(c.id, 1.0)) * float(_wear_upgrades.get(c.id, 1.0))
 
 
 # ---------------------------------------------------------------------------
@@ -388,6 +443,7 @@ func to_save(saved_at_unix: float) -> Dictionary:
 		"producers": levels,
 		"upgrades_purchased": upgrades.purchased_ids(),
 		"distance_m": train.distance_m,
+		"best_station_count": known_station_count(),
 		"components": comps,
 		"maintenance_left": maintenance.stop_left,
 		"maintenance_component": maintenance.stop_component_id,
@@ -400,6 +456,7 @@ func load_save(data: Dictionary) -> void:
 	var version := int(data.get("save_version", 1))
 	train.distance_m = maxf(0.0, float(data.get("distance_m", 0.0)))
 	route.update(train.distance_m)
+	best_station_count = maxi(route.reached_count, int(data.get("best_station_count", 0)))
 
 	if version >= 3:
 		var levels: Dictionary = data.get("producers", {})
