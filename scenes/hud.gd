@@ -476,8 +476,9 @@ func _on_offline_summary(summary: Dictionary) -> void:
 		lines.append("%d paradas para manutenção (%s)" % [int(summary["failures"]), NumFormat.duration(float(summary["downtime"]))])
 	if int(summary.get("auto_repairs", 0)) > 0:
 		lines.append("%d consertos automáticos (%s carvão)" % [int(summary["auto_repairs"]), NumFormat.amount(float(summary["auto_cost"]))])
-	if summary.get("waiting_at_station", false) and not names.is_empty():
-		lines.append("O trem chegou à %s e esperou você para seguir viagem." % _station_title(names[-1]))
+	var waiting := int(summary.get("waiting_station", -1))
+	if waiting >= 0:
+		lines.append("O trem parou antes da %s e esperou você para chegar." % _station_title(_state().route.station_name(waiting)))
 	_offline_text.text = "\n".join(lines)
 	_offline_popup.visible = not floating
 	_pop_in(_offline_popup)

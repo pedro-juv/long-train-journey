@@ -7,6 +7,19 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.7.0] — 2026-11-26 · Offline mais controlado
+
+**Progresso com o jogo fechado**
+- O trem anda bem menos: só 10% do tempo fora (10 horas fora = 1 hora de
+  viagem). As peças gastam na mesma proporção
+- A produção offline vale 80% (antes 100%); o limite de 24 horas continua
+- Estações novas não passam mais offline: o trem para 250 m antes da próxima
+  estação que você ainda não conhece e espera. Ao abrir, ele segue e chega com
+  você vendo (placa, região nova, recompensa)
+- Estações já conhecidas poderão ser atravessadas offline (preparação para o
+  futuro reset): o jogo agora salva a estação mais longe que você já alcançou
+- Resumo "Enquanto você esteve fora" avisa quando o trem está esperando
+
 ## [0.6.0] — 2026-11-21 · Regiões pós-apocalípticas
 
 **As estações do ano viraram regiões devastadas** (referências: The Last of

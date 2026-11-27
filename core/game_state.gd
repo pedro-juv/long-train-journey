@@ -27,6 +27,9 @@ var stoke: float = 0.0
 var stop_at_stations: bool = true
 ## Segundos que faltam parado na estação atual (0 = não está parado).
 var station_stop_left: float = 0.0
+## Quantas estações o jogador já alcançou na viagem mais longa (salvo; um
+## futuro reset volta o trem, mas não esquece as estações conhecidas).
+var best_station_count: int = 0
 
 var _producer_by_id: Dictionary = {}
 
@@ -298,32 +301,38 @@ func tick(delta: float) -> Dictionary:
 
 ## Aplica `elapsed_seconds` de progresso offline. Retorna o resumo:
 ## { "seconds", "stock_delta", "distance", "stations": [índices], "failures",
-##   "downtime", "auto_repairs", "auto_cost", "waiting_at_station" }.
+##   "downtime", "auto_repairs", "auto_cost", "waiting_at_station",
+##   "waiting_station" (índice da estação nova esperada, ou -1) }.
 ## Offline não há inércia: o trem anda em cruzeiro (sem impulso da caldeira).
 func apply_offline(elapsed_seconds: float) -> Dictionary:
 	var seconds := OfflineProgress.clamp_elapsed(elapsed_seconds, config.offline_max_seconds)
-	var effective: float = seconds * config.offline_efficiency
 	var stock_before := stock.amount
+	# Movimento reduzido: o trem anda só uma fração do tempo fora (o tempo
+	# simulado encolhe); a produção, um pouco menor, vale pelo tempo todo.
+	var move_frac := clampf(config.offline_movement_efficiency, 0.001, 1.0)
+	var coal_rate: float = total_production() * config.offline_production_efficiency / move_frac
 
-	# Caminho B: no máximo até a próxima estação.
+	# Estação nova não passa offline: espera um pouco antes dela.
 	var max_distance := INF
-	if config.offline_stop_at_next_station and not route.is_complete():
-		max_distance = maxf(0.0, route.target_distance(route.reached_count) - train.distance_m)
+	var known := known_station_count()
+	var waiting_for := -1
+	if config.offline_stop_before_new_station and known < route.station_count():
+		waiting_for = known
+		max_distance = maxf(0.0, route.target_distance(known) - config.offline_wait_distance_m - train.distance_m)
 
-	var result := OfflineProgress.simulate(effective, total_production(), stock.amount, train, maintenance, route, max_distance)
+	var result := OfflineProgress.simulate(seconds * move_frac, total_production(), stock.amount, train,
+		maintenance, route, max_distance, coal_rate)
 
 	stock.amount = maxf(0.0, stock.amount + float(result["coal_delta"]))
 	var distance := float(result["distance"])
 	if is_finite(max_distance) and distance >= max_distance - 0.001:
-		distance = max_distance  # chega exatamente na estação
+		distance = max_distance  # para exatamente no ponto de espera
 	train.distance_m += distance
 	var reached := route.update(train.distance_m)
-	# Ao abrir, o trem parte do zero (acelerando) ou está parado na plataforma.
+	# Ao abrir, o trem parte do zero e segue viagem.
 	train.current_speed = 0.0
 	train.state = TrainMovement.State.ACCELERATING
-	if not reached.is_empty() and stop_at_stations:
-		station_stop_left = config.station_stop_seconds
-		train.state = TrainMovement.State.AT_STATION
+	var waiting: bool = result["waiting_at_station"] or (waiting_for >= 0 and is_equal_approx(max_distance, 0.0))
 	return {
 		"seconds": seconds,
 		"stock_delta": stock.amount - stock_before,
@@ -333,8 +342,15 @@ func apply_offline(elapsed_seconds: float) -> Dictionary:
 		"downtime": result["downtime"],
 		"auto_repairs": result["auto_repairs"],
 		"auto_cost": result["auto_cost"],
-		"waiting_at_station": result["waiting_at_station"],
+		"waiting_at_station": waiting,
+		"waiting_station": waiting_for if waiting else -1,
 	}
+
+
+## Estações que o jogador já conhece: a mais longe que ele alcançou em
+## qualquer viagem (vale também depois de um futuro reset).
+func known_station_count() -> int:
+	return maxi(best_station_count, route.reached_count)
 
 
 # ---------------------------------------------------------------------------
@@ -388,6 +404,7 @@ func to_save(saved_at_unix: float) -> Dictionary:
 		"producers": levels,
 		"upgrades_purchased": upgrades.purchased_ids(),
 		"distance_m": train.distance_m,
+		"best_station_count": known_station_count(),
 		"components": comps,
 		"maintenance_left": maintenance.stop_left,
 		"maintenance_component": maintenance.stop_component_id,
@@ -400,6 +417,7 @@ func load_save(data: Dictionary) -> void:
 	var version := int(data.get("save_version", 1))
 	train.distance_m = maxf(0.0, float(data.get("distance_m", 0.0)))
 	route.update(train.distance_m)
+	best_station_count = maxi(route.reached_count, int(data.get("best_station_count", 0)))
 
 	if version >= 3:
 		var levels: Dictionary = data.get("producers", {})

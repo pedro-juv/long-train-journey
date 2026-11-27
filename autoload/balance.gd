@@ -188,15 +188,25 @@ var component_warning_threshold: float = 0.25
 # Progresso offline
 # ---------------------------------------------------------------------------
 
-## Caminho B (decisão 20): offline o trem anda no máximo até a próxima estação
-## e espera o jogador lá. A produção continua valendo pelo tempo todo.
-var offline_stop_at_next_station: bool = true
+## Estações novas não passam offline: o trem para um pouco antes da primeira
+## estação que o jogador ainda não alcançou e espera ele voltar para chegar
+## junto (placa, recompensa, região nova). Estações já conhecidas (depois de um
+## futuro reset) podem ser atravessadas offline.
+var offline_stop_before_new_station: bool = true
+
+## Onde o trem espera: esta distância (m) antes da estação nova.
+var offline_wait_distance_m: float = 250.0
 
 ## Tempo máximo (segundos) contado enquanto o jogo está fechado: 24 horas.
 var offline_max_seconds: float = 86400.0
 
-## Fração da produção e do movimento aplicada offline (1.0 = 100%).
-var offline_efficiency: float = 1.0
+## Produção offline: fração da produção normal (0.8 = 80%).
+var offline_production_efficiency: float = 0.8
+
+## Movimento offline: fração do tempo fora em que o trem anda (0.1 = 10%).
+## 10 horas fora andam o mesmo que 1 hora jogando; as peças gastam na mesma
+## proporção.
+var offline_movement_efficiency: float = 0.1
 
 ## Ausências menores que isso (segundos) não mostram resumo.
 var offline_min_seconds_for_summary: float = 60.0

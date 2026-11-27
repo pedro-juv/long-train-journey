@@ -74,28 +74,35 @@ func _run() -> void:
 
 	var now := Time.get_unix_time_from_system()
 
-	# --- 1. Save v3 com 2 horas fora -----------------------------------------
-	_write_save({"save_version": 3, "saved_at": now - 7200.0, "stock": 500.0, "tank": 100.0,
+	# --- 1. Save v3 com 10 horas fora ----------------------------------------
+	_write_save({"save_version": 3, "saved_at": now - 36000.0, "stock": 500.0, "tank": 100.0,
 		"producers": {"foguista": 12, "carvoaria": 3, "mina": 0},
 		"upgrades_purchased": ["click_1"], "distance_m": 4000.0})
 	await _open_game()
 	var g := _game()
 	var hud := _hud()
-	print("Carregamento e offline (2 h fora)")
+	print("Carregamento e offline (10 h fora)")
 	_check(g.state.producer("foguista").level == 12 and g.state.producer("carvoaria").level == 3, "níveis carregados")
 	_check(g.state.stock.amount > 500.0 + 50000.0, "estoque ganhou a produção offline (%s)" % NumFormat.amount(g.state.stock.amount))
 	_check(hud.get_node("%OfflinePopup").visible, "resumo offline aparece")
 	var text: String = hud.get_node("%OfflineText").text
-	_check(text.contains("Tempo fora: 2 h"), "resumo mostra o tempo fora")
-	_check(text.contains("Estações alcançadas: Cidade Tomada"), "resumo lista a estação alcançada offline")
-	_check(hud.get_node("%MessageLabel").text.contains("Cidade Tomada"), "chegada da estação alcançada offline aparece ao abrir (caminho B)")
-	_check(text.contains("esperou você"), "resumo avisa que o trem esperou na estação")
-	_check(g.state.train.distance_m >= 10500.0 and g.state.train.distance_m < 10520.0, "offline parou na Cidade Tomada e o trem segue ao abrir (%.0f m)" % g.state.train.distance_m)
+	_check(text.contains("Tempo fora: 10 h"), "resumo mostra o tempo fora")
+	_check(not text.contains("Estações alcançadas"), "offline não alcança estação nova")
+	_check(text.contains("parou antes da Estação Cidade Tomada"), "resumo avisa que o trem esperou antes da estação nova")
+	var wait_at: float = g.state.route.target_distance(1) - Balance.offline_wait_distance_m
+	_check(absf(g.state.train.distance_m - wait_at) < 30.0, "offline parou antes da Cidade Tomada e segue ao abrir (%.0f m)" % g.state.train.distance_m)
+	_check(g.state.train.state != TrainMovement.State.AT_STATION, "ao abrir, o trem segue viagem")
 	var view := _main.get_node("TrainView")
 	var audio := _main.get_node("AudioDirector")
+	_check(view._theme_id == "inicio", "cenário continua na região da Estação Inicial (%s)" % view._theme_id)
+	# A chegada na estação nova acontece com o jogador presente
+	g.state.train.distance_m = g.state.route.target_distance(1) - 0.2
+	g.state.train.current_speed = 2.0
+	await get_tree().create_timer(1.0).timeout
+	_check(hud.get_node("%MessageLabel").text.contains("Cidade Tomada"), "chegada na Cidade Tomada aparece ao vivo")
 	_check(view._theme_id == "tomada", "cenário no tema da Cidade Tomada (%s)" % view._theme_id)
 	_check(audio.current_music_theme() == "tomada", "música na variação da Cidade Tomada (%s)" % audio.current_music_theme())
-	_check(g.state.train.state == TrainMovement.State.AT_STATION and g.state.station_stop_left > 0.0, "ao abrir, o trem está parado na plataforma da Cidade Tomada")
+	_check(g.state.train.state == TrainMovement.State.AT_STATION and g.state.station_stop_left > 0.0, "o trem para na plataforma da Cidade Tomada")
 	_check(hud.get_node("%StateLabel").visible and hud.get_node("%StateLabel").text.contains("Parado em Cidade Tomada"), "estado mostra a parada na estação")
 	g.set_stop_at_stations(false)
 	_check(not _menu().get_node("%StopSwitch").on, "chave Parada automática do menu acompanha a preferência")
@@ -185,13 +192,13 @@ func _run() -> void:
 	_check(text.contains("contamos até 24 h"), "resumo avisa que contou só 24 h (%s)" % text.get_slice("\n", 0))
 
 	# --- 2b. Ruínas Brancas: manutenção automática e resumo de paradas ---------------
-	_write_save({"save_version": 4, "saved_at": now - 3600.0, "stock": 1e9, "tank": 100.0,
+	_write_save({"save_version": 4, "saved_at": now - 86400.0, "stock": 1e9, "tank": 100.0,
 		"producers": {"foguista": 30, "carvoaria": 20}, "upgrades_purchased": [], "distance_m": 60000.0,
 		"components": {}})
 	await _open_game()
 	print("Ruínas Brancas: manutenção automática")
-	_check(_main.get_node("TrainView")._theme_id == "inverno", "1 h fora a partir do Ruínas Brancas: chega ao Ermo Gelado (tema %s)" % _main.get_node("TrainView")._theme_id)
 	text = _hud().get_node("%OfflineText").text
+	_check(_main.get_node("TrainView")._theme_id == "ruinas" and text.contains("parou antes da Estação Ermo Gelado"), "24 h fora nas Ruínas Brancas: espera antes do Ermo Gelado (tema %s)" % _main.get_node("TrainView")._theme_id)
 	_check(text.contains("paradas para manutenção"), "resumo offline mostra as paradas (%s)" % text.get_slice("\n", 3))
 	_hud().get_node("%TrainTab").pressed.emit()
 	var arow: Dictionary = _hud()._component_rows

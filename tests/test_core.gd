@@ -185,7 +185,7 @@ func _test_inertia() -> void:
 
 
 func _test_offline() -> void:
-	print("Progresso offline (caminho B: até a próxima estação)")
+	print("Progresso offline (movimento 10%, produção 80%, para antes de estação nova)")
 	_check(OfflineProgress.clamp_elapsed(-500.0, 86400.0) == 0.0, "relógio voltando = 0 s")
 	_check(OfflineProgress.clamp_elapsed(3 * 86400.0, 86400.0) == 86400.0, "limite de 24 h")
 	var s := _new_state()
@@ -195,34 +195,54 @@ func _test_offline() -> void:
 	var prod := s.total_production()
 	var speed := s.train.speed_for_production(prod)
 	var stock0 := s.stock.amount
-	var res := s.apply_offline(3600.0)
-	_check(is_equal_approx(res["distance"], 3500.0), "1 h fora: para exatamente na Estação Inicial (%.1f m)" % res["distance"])
-	_check(res["waiting_at_station"] and str(res["stations"]) == str([0]), "trem esperando na estação; só uma estação alcançada")
-	var expected_stock := prod * 3600.0
-	_check(absf(s.stock.amount - (stock0 + expected_stock)) < 1.0, "produção vale a hora inteira, mesmo esperando")
-	_check(s.train.state == TrainMovement.State.AT_STATION and s.station_stop_left > 0.0, "ao voltar, o trem está parado na plataforma")
+	var res := s.apply_offline(600.0)
+	_check(absf(res["distance"] - speed * 60.0) < 0.5, "10 min fora: o trem anda o mesmo que 1 min jogando (%.0f m)" % res["distance"])
+	_check(not res["waiting_at_station"] and res["waiting_station"] == -1, "ainda longe da estação: não está esperando")
+	_check(absf(s.stock.amount - (stock0 + prod * 600.0 * 0.8)) < 1.0, "produção offline a 80%")
+	var res1 := s.apply_offline(86400.0)
+	var wait_at: float = 3500.0 - B.offline_wait_distance_m
+	_check(is_equal_approx(s.train.distance_m, wait_at), "24 h fora: para %.0f m antes da Estação Inicial (%.1f m)" % [B.offline_wait_distance_m, s.train.distance_m])
+	_check(res1["waiting_at_station"] and res1["waiting_station"] == 0 and res1["stations"].is_empty(), "esperando a estação nova, sem alcançá-la")
+	_check(s.route.reached_count == 0 and s.train.state == TrainMovement.State.ACCELERATING, "ao voltar, o trem segue para chegar com o jogador")
 	var res2 := s.apply_offline(3600.0)
-	_check(is_equal_approx(res2["distance"], 7000.0) and str(res2["stations"]) == str([1]), "nova ausência: anda só até a Cidade Tomada")
+	_check(is_equal_approx(res2["distance"], 0.0) and res2["waiting_station"] == 0, "nova ausência: continua esperando no mesmo lugar")
+	_check(res2["stock_delta"] > 0.0, "a produção continua com o trem esperando")
+
+	# Estação já conhecida (como depois de um futuro reset): passa offline
+	var k := _new_state()
+	k.stock.add(1e6)
+	for i in 12:
+		k.buy_producer("foguista")
+	k.best_station_count = 2
+	var rk := k.apply_offline(86400.0)
+	_check(str(rk["stations"]) == str([0, 1]), "estações conhecidas passam offline (%s)" % str(rk["stations"]))
+	_check(is_equal_approx(k.train.distance_m, k.route.target_distance(2) - B.offline_wait_distance_m) and rk["waiting_station"] == 2, "e o trem espera antes da primeira estação nova")
+	var saved := k.to_save(0.0)
+	var k2 := _new_state()
+	k2.load_save(saved)
+	_check(k2.best_station_count == 2, "estações conhecidas ficam salvas")
 
 	var B2 = load("res://autoload/balance.gd").new()
-	B2.offline_stop_at_next_station = false
+	B2.offline_stop_before_new_station = false
 	var free := GameState.new(B2)
 	free.stock.add(1e6)
 	for i in 12:
 		free.buy_producer("foguista")
 	var r3 := free.apply_offline(3600.0)
-	_check(is_equal_approx(r3["distance"], speed * 3600.0), "com o caminho B desligado: distância = velocidade x tempo")
+	_check(is_equal_approx(r3["distance"], speed * 360.0), "sem a espera: distância = velocidade x 10% do tempo")
 	B2.free()
 
 	var s2 := _new_state()
 	var r2 := s2.apply_offline(10 * 86400.0)
 	_check(r2["seconds"] == 86400.0, "10 dias fora contam só 24 h")
 	_check(s2.stock.amount == 20.0, "sem produtores: estoque intacto (trem não gasta carvão)")
-	_check(is_equal_approx(r2["distance"], 3500.0), "sem produtores: anda na velocidade base até a 1ª estação")
+	_check(is_equal_approx(s2.train.distance_m, 3500.0 - B.offline_wait_distance_m), "sem produtores: anda na velocidade base até antes da 1ª estação")
 
 	# Manutenção offline (Estação Inicial alcançada, 3 peças ativas, sem limite de estação)
 	var B3 = load("res://autoload/balance.gd").new()
-	B3.offline_stop_at_next_station = false
+	B3.offline_stop_before_new_station = false
+	B3.offline_movement_efficiency = 1.0
+	B3.offline_production_efficiency = 1.0
 	var m := GameState.new(B3)
 	m.stock.add(1e7)
 	for i in 30:
@@ -258,7 +278,9 @@ func _test_offline() -> void:
 func _test_offline_matches_online() -> void:
 	print("Offline por eventos = simulação segundo a segundo")
 	var B4 = load("res://autoload/balance.gd").new()
-	B4.offline_stop_at_next_station = false
+	B4.offline_stop_before_new_station = false
+	B4.offline_movement_efficiency = 1.0
+	B4.offline_production_efficiency = 1.0
 	var make := func() -> GameState:
 		var g := GameState.new(B4)
 		g.stock.add(1e7)

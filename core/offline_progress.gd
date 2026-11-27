@@ -7,9 +7,10 @@ extends RefCounted
 ## sem simular frame a frame. Mesmo 24 horas são calculadas instantaneamente.
 ##
 ## Regras:
-## - Produção a 100% pelo tempo todo (limite em Balance.offline_max_seconds).
-## - Caminho B (decisão 20): o trem anda no máximo até a próxima estação e
-##   espera o jogador lá; a produção continua mesmo com o trem esperando.
+## - Produção e movimento reduzidos (Balance.offline_production_efficiency e
+##   offline_movement_efficiency); limite em Balance.offline_max_seconds.
+## - O trem não chega em estação nova offline: para antes dela e espera o
+##   jogador; a produção continua mesmo com o trem esperando.
 ## - Peças desgastam e quebram como online (parada + conserto automático);
 ##   com manutenção automática, o conserto é pago e o trem não para.
 
@@ -26,12 +27,16 @@ static func clamp_elapsed(elapsed_seconds: float, max_seconds: float) -> float:
 ## andamento em `maint`. Retorna:
 ## { "coal_delta", "distance", "failures", "auto_repairs", "auto_cost",
 ##   "downtime", "waiting_at_station" }
+## `coal_rate` é o carvão ganho por segundo simulado (padrão: a produção);
+## a velocidade sempre vem da produção real.
 static func simulate(seconds: float, production: float, stock_available: float, train: TrainMovement,
-		maint: Maintenance, route: StationTracker, max_distance: float) -> Dictionary:
+		maint: Maintenance, route: StationTracker, max_distance: float, coal_rate: float = -1.0) -> Dictionary:
 	var out := {"coal_delta": 0.0, "distance": 0.0, "failures": 0, "auto_repairs": 0,
 		"auto_cost": 0.0, "downtime": 0.0, "waiting_at_station": false}
 	if seconds <= 0.0:
 		return out
+	if coal_rate < 0.0:
+		coal_rate = production
 
 	var speed := train.speed_for_production(production)
 	var t := 0.0
@@ -46,7 +51,7 @@ static func simulate(seconds: float, production: float, stock_available: float, 
 			maint.stop_component_id = ""
 		t += d
 		out["downtime"] += d
-		coal += production * d
+		coal += coal_rate * d
 
 	var comps := maint.active_components(route)
 	var auto_cost := maint.auto_repair_cost(production)
@@ -70,7 +75,7 @@ static func simulate(seconds: float, production: float, stock_available: float, 
 			c.integrity -= c.wear_rate(speed) * step
 		dist += speed * step
 		t += step
-		coal += production * step
+		coal += coal_rate * step
 		if event == null:
 			continue
 		events += 1
@@ -91,15 +96,15 @@ static func simulate(seconds: float, production: float, stock_available: float, 
 		var stop := minf(maint.stop_seconds(), seconds - t)
 		t += stop
 		out["downtime"] += stop
-		coal += production * stop
+		coal += coal_rate * stop
 		# Inércia: frear e arrancar de novo custam ~metade do tempo de cada fase.
 		var inertia := minf((train.brake_seconds + train.accel_seconds) * 0.5, seconds - t)
 		t += inertia
-		coal += production * inertia
+		coal += coal_rate * inertia
 
 	# Esperando na estação (ou fim do tempo): a produção continua.
 	if t < seconds:
-		coal += production * (seconds - t)
+		coal += coal_rate * (seconds - t)
 	out["distance"] = dist
 	out["coal_delta"] = coal - stock_available
 	return out
