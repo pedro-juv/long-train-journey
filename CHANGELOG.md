@@ -7,6 +7,14 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.8.1] — 2026-11-26 · Atalho da caldeira
+
+- Espaço atiça a caldeira (mesmo efeito do clique no botão, que continua
+  valendo). Segurar a tecla não repete: cada aperto vale um clique
+- A tecla pode ser trocada no menu de opções (ESC), em "Atalho: atiçar a
+  caldeira"; Delete remove o atalho. A escolha fica salva
+- A dica embaixo do botão mostra o atalho atual
+
 ## [0.8.0] — 2026-11-26 · Regiões 6 a 10
 
 **Cinco regiões novas** (cenários originais, só inspirados nas referências)

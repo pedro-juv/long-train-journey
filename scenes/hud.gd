@@ -103,6 +103,8 @@ func _ready() -> void:
 	_train_tab.pressed.connect(_select_tab.bind("trem"))
 
 	_click_button.pressed.connect(_on_click_pressed)
+	EventBus.hotkeys_changed.connect(_refresh_stoke_hint)
+	_refresh_stoke_hint()
 	EventBus.producer_bought.connect(_on_producer_bought)
 	_offline_ok.pressed.connect(func(): _offline_popup.visible = false)
 	_options_button.pressed.connect(_on_options_pressed)
@@ -689,6 +691,20 @@ func _show_message(text: String) -> void:
 # ---------------------------------------------------------------------------
 # Efeitos (só apresentação)
 # ---------------------------------------------------------------------------
+
+## Atalho de teclado (padrão Espaço) = um clique em "Atiçar a caldeira".
+## Segurar a tecla não repete: cada aperto vale um clique.
+func _unhandled_input(event: InputEvent) -> void:
+	if Hotkeys.is_stoke_event(event):
+		_on_click_pressed()   # já dá o "aperto" visual no botão
+		get_viewport().set_input_as_handled()
+
+
+## Dica embaixo do botão mostra o atalho atual.
+func _refresh_stoke_hint() -> void:
+	var key_name := Hotkeys.stoke_key_name()
+	%SpeedHint.text = "Clique ou %s: carvão + pressão na caldeira" % key_name if key_name != "" else "Clique: carvão + pressão na caldeira"
+
 
 func _on_click_pressed() -> void:
 	_game.click_coal()

@@ -63,6 +63,22 @@ func _press_esc() -> void:
 	await get_tree().process_frame
 
 
+## Aperta e solta uma tecla física (echo = repetição de tecla segurada).
+func _press_key(key: Key, echo: bool = false) -> void:
+	var ev := InputEventKey.new()
+	ev.physical_keycode = key
+	ev.keycode = key
+	ev.pressed = true
+	ev.echo = echo
+	Input.parse_input_event(ev)
+	await get_tree().process_frame
+	var up := ev.duplicate()
+	up.pressed = false
+	up.echo = false
+	Input.parse_input_event(up)
+	await get_tree().process_frame
+
+
 func _run() -> void:
 	print("== Teste da cena principal (Fase 1A + 1B) ==")
 	var had_save := FileAccess.file_exists(SAVE_PATH)
@@ -143,6 +159,38 @@ func _run() -> void:
 	hud.get_node("%ClickButton").pressed.emit()
 	_check(absf(g.state.stock.amount - clicks_before - expected_click) < 0.01 * expected_click + 1.0, "clique = (1 + 2%% da produção) x2 com a 1ª melhoria (%.1f)" % expected_click)
 	_check(g.state.stoke > stoke_before, "clique atiça a caldeira")
+
+	print("Atalho da caldeira (teclado)")
+	var key_saved := Hotkeys.stoke_key
+	var clicks := [0]
+	var count_click := func(): clicks[0] += 1
+	EventBus.coal_clicked.connect(count_click)
+	Hotkeys.set_stoke_key(KEY_SPACE)
+	await _press_key(KEY_SPACE)
+	_check(clicks[0] == 1, "Espaço atiça a caldeira (padrão)")
+	await _press_key(KEY_SPACE, true)
+	_check(clicks[0] == 1, "segurar a tecla não repete o clique")
+	_check(hud.get_node("%SpeedHint").text.contains("Espaço"), "dica mostra o atalho (%s)" % hud.get_node("%SpeedHint").text)
+	var m := _menu()
+	m.open()
+	var hk: Button = m.get_node("%Root").find_child("HotkeyButton", true, false)
+	_check(hk != null and hk.text == "Espaço", "menu mostra o atalho atual")
+	hk.pressed.emit()
+	await _press_key(KEY_F)
+	_check(Hotkeys.stoke_key == KEY_F and hk.text == "F" and m.is_open, "menu troca o atalho para F sem fechar")
+	hk.pressed.emit()
+	await _press_key(KEY_ESCAPE)
+	_check(Hotkeys.stoke_key == KEY_F and m.is_open, "ESC cancela a troca sem fechar o menu")
+	_check(clicks[0] == 1, "com o menu aberto o atalho não atiça")
+	m.close(true)
+	await _press_key(KEY_SPACE)
+	_check(clicks[0] == 1, "Espaço deixa de atiçar")
+	await _press_key(KEY_F)
+	_check(clicks[0] == 2, "F atiça a caldeira")
+	_check(hud.get_node("%SpeedHint").text.contains("Clique ou F"), "dica atualizada")
+	EventBus.coal_clicked.disconnect(count_click)
+	Hotkeys.set_stoke_key(key_saved)
+	hud._refresh_stoke_hint()
 
 	print("Save")
 	g.save_now()

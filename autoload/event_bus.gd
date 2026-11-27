@@ -60,3 +60,6 @@ signal offline_summary(summary: Dictionary)
 
 ## Jogo carregado ou reiniciado (HUD deve sincronizar tudo).
 signal game_loaded()
+
+## O atalho de teclado de "Atiçar a caldeira" mudou (menu de opções).
+signal hotkeys_changed()
