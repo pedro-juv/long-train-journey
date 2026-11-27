@@ -153,7 +153,8 @@ var train_station_brake_seconds: float = 7.0
 var station_stop_seconds: float = 5.0
 
 # ---------------------------------------------------------------------------
-# Estações — rota contínua; cada trecho tem o dobro do anterior
+# Estações — rota contínua; cada trecho leva ~1,6x o tempo do anterior
+# (comprimentos calibrados pela simulação da rota longa em tests/test_core.gd)
 # ---------------------------------------------------------------------------
 ## Campos: name, length (metros do trecho desde a estação anterior),
 ## theme (tema visual e musical da região, a partir da chegada na estação;
@@ -162,15 +163,15 @@ var station_stop_seconds: float = 5.0
 ## produtores com unlock_station também são liberados por ela.
 var stations: Array[Dictionary] = [
 	{"name": "Estação Inicial", "length": 3500.0, "theme": "inicio"},
-	{"name": "Cidade Tomada", "length": 7000.0, "theme": "tomada"},
-	{"name": "Deserto de Ferrugem", "length": 14000.0, "theme": "deserto"},
-	{"name": "Ruínas Brancas", "length": 28000.0, "theme": "ruinas"},
-	{"name": "Ermo Gelado", "length": 56000.0, "theme": "inverno"},
-	{"name": "Galerias de Pedra", "length": 1300000.0, "theme": "tunel"},
-	{"name": "Vila Alagada", "length": 6500000.0, "theme": "alagada"},
-	{"name": "Fossa de Latão", "length": 28000000.0, "theme": "fossa"},
-	{"name": "Céu de Latão", "length": 113000000.0, "theme": "ceu"},
-	{"name": "Mar de Cinzas", "length": 350000000.0, "theme": "cinzas"},
+	{"name": "Cidade Tomada", "length": 23800.0, "theme": "tomada"},
+	{"name": "Deserto de Ferrugem", "length": 75000.0, "theme": "deserto"},
+	{"name": "Ruínas Brancas", "length": 211000.0, "theme": "ruinas"},
+	{"name": "Ermo Gelado", "length": 446000.0, "theme": "inverno"},
+	{"name": "Galerias de Pedra", "length": 1550000.0, "theme": "tunel"},
+	{"name": "Vila Alagada", "length": 5720000.0, "theme": "alagada"},
+	{"name": "Fossa de Latão", "length": 19700000.0, "theme": "fossa"},
+	{"name": "Céu de Latão", "length": 75900000.0, "theme": "ceu"},
+	{"name": "Mar de Cinzas", "length": 233000000.0, "theme": "cinzas"},
 ]
 
 # ---------------------------------------------------------------------------

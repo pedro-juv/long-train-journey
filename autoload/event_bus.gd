@@ -50,6 +50,9 @@ signal station_departed()
 ## O jogador ligou/desligou "Parar nas estações".
 signal stop_at_stations_changed(enabled: bool)
 
+## Preferência "Partir sozinho" mudou (menu de opções).
+signal auto_depart_changed(enabled: bool)
+
 ## A parada para manutenção terminou e o trem voltou a andar (evento).
 signal maintenance_finished()
 

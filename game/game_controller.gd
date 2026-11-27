@@ -118,13 +118,33 @@ func set_stop_at_stations(enabled: bool) -> void:
 	save_now()
 
 
-## Apaga o save e recomeça (menu de opções). A preferência de parada
-## automática é do jogador, não da partida: continua a mesma.
+## "Partir sozinho" (menu de opções). Ligar com o trem esperando já parte.
+func set_auto_depart(enabled: bool) -> void:
+	state.auto_depart = enabled
+	EventBus.auto_depart_changed.emit(enabled)
+	if enabled and state.waiting_departure:
+		depart()
+	save_now()
+
+
+## Botão "Partir" da HUD: o trem sai da estação.
+func depart() -> bool:
+	if not state.depart():
+		return false
+	EventBus.train_state_changed.emit(state.train.state)
+	EventBus.station_departed.emit()
+	return true
+
+
+## Apaga o save e recomeça (menu de opções). As preferências de parada e de
+## partida são do jogador, não da partida: continuam as mesmas.
 func reset_game() -> void:
 	var keep_stop := state.stop_at_stations
+	var keep_depart := state.auto_depart
 	SaveManager.delete_save()
 	state = GameState.new(Balance)
 	state.stop_at_stations = keep_stop
+	state.auto_depart = keep_depart
 	_autosave_timer = 0.0
 	_announce_full_state({})
 	save_now()
@@ -179,6 +199,7 @@ func _announce_full_state(offline_summary: Dictionary) -> void:
 	EventBus.speed_changed.emit(state.train.current_speed, state.train.target_speed, state.stoke)
 	EventBus.distance_changed.emit(state.train.distance_m)
 	EventBus.stop_at_stations_changed.emit(state.stop_at_stations)
+	EventBus.auto_depart_changed.emit(state.auto_depart)
 	EventBus.game_loaded.emit()
 	if not offline_summary.is_empty():
 		EventBus.offline_summary.emit(offline_summary)

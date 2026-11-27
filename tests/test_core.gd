@@ -131,11 +131,11 @@ func _test_route() -> void:
 	print("Rota de estações")
 	var r := StationTracker.new(B.stations)
 	_check(r.station_count() == 10, "dez estações")
-	_check(r.target_distance(0) == 3500.0 and r.target_distance(3) == 52500.0, "trechos dobram (3,5 / 10,5 / 24,5 / 52,5 km)")
+	_check(r.target_distance(0) == 3500.0 and r.target_distance(3) == 313300.0, "trechos crescem (3,5 / 27,3 / 102,3 / 313,3 km)")
 	_check(is_equal_approx(r.progress(1750.0), 0.5), "progresso no 1º trecho")
-	var got := r.update(11000.0)
+	var got := r.update(30000.0)
 	_check(str(got) == str([0, 1]), "pode alcançar duas estações de uma vez")
-	_check(r.next_station_name() == "Deserto de Ferrugem" and is_equal_approx(r.progress(10500.0 + 7000.0), 0.5), "progresso conta a partir da última estação")
+	_check(r.next_station_name() == "Deserto de Ferrugem" and is_equal_approx(r.progress(27300.0 + 37500.0), 0.5), "progresso conta a partir da última estação")
 	r.update(1e12)
 	_check(r.is_complete() and r.next_station_name() == "", "rota completa")
 
@@ -177,8 +177,32 @@ func _test_inertia() -> void:
 		var r := s.tick(0.1)
 		stopped = stopped or r["station_stop"]
 		departed = departed or r["departed"]
-	_check(stopped and departed, "GameState: para na Estação Inicial e parte depois de %.0f s" % B.station_stop_seconds)
-	_check(s.train.distance_m > 3500.0, "segue viagem depois da parada")
+	_check(stopped and not departed and s.waiting_departure and s.is_at_station(), "GameState: para na Estação Inicial e espera o jogador (Partir sozinho desligado por padrão)")
+	_check(not s.auto_depart and is_equal_approx(s.train.distance_m, 3500.0) and s.train.state == TrainMovement.State.AT_STATION, "esperando: o trem fica parado na plataforma")
+	var w_save := s.to_save(0.0)
+	var w2 := _new_state()
+	w2.load_save(w_save)
+	_check(w2.waiting_departure and w2.train.state == TrainMovement.State.AT_STATION, "save guarda o trem esperando na estação")
+	var w_off := w2.apply_offline(3600.0)
+	_check(w_off["waiting_departure"] and is_equal_approx(w_off["distance"], 0.0) and w2.waiting_departure and w2.train.state == TrainMovement.State.AT_STATION, "offline: continua esperando na estação")
+	_check(w_off["stock_delta"] > 0.0 or w2.total_production() == 0.0, "offline: produção continua com o trem esperando")
+	_check(s.depart() and not s.is_at_station(), "Partir: o trem sai da estação")
+	_check(not s.depart(), "Partir fora da estação não faz nada")
+	for i in 100:
+		s.tick(0.1)
+	_check(s.train.distance_m > 3500.0, "segue viagem depois de partir")
+	var ad := _new_state()
+	ad.auto_depart = true
+	ad.train.distance_m = 3400.0
+	ad.train.current_speed = ad.cruise_speed()
+	var ad_departed := false
+	for i in 600:
+		ad_departed = ad.tick(0.1)["departed"] or ad_departed
+	_check(ad_departed and not ad.is_at_station() and ad.train.distance_m > 3500.0, "Partir sozinho ligado: parte depois de %.0f s" % B.station_stop_seconds)
+	var ad2 := _new_state()
+	ad2.load_save(ad.to_save(0.0))
+	_check(ad2.auto_depart, "preferência Partir sozinho fica salva")
+	_check(not _new_state().auto_depart and not GameState.new(B).waiting_departure, "padrão: Partir sozinho desligado")
 	var f := _new_state()
 	f.stop_at_stations = false
 	_check(f.will_stop_at_next_station(), "1ª estação sempre para, mesmo com a opção desligada")
@@ -212,9 +236,11 @@ func _test_offline() -> void:
 
 	# Estação já conhecida (como depois de um futuro reset): passa offline
 	var k := _new_state()
-	k.stock.add(1e6)
-	for i in 12:
+	k.stock.add(1e9)
+	for i in 40:
 		k.buy_producer("foguista")
+	for i in 30:
+		k.buy_producer("carvoaria")
 	k.best_station_count = 2
 	var rk := k.apply_offline(86400.0)
 	_check(str(rk["stations"]) == str([0, 1]), "estações conhecidas passam offline (%s)" % str(rk["stations"]))
@@ -262,7 +288,7 @@ func _test_offline() -> void:
 	a.stock.add(1e9)
 	for i in 30:
 		a.buy_producer("foguista")
-	a.train.distance_m = 100000.0
+	a.train.distance_m = 320000.0
 	a.route.update(a.train.distance_m)
 	for id in ["rodas", "caldeira", "pistoes", "freios", "engates", "chamine"]:
 		a.buy_auto_maintenance(id)
@@ -485,6 +511,19 @@ func _test_save_roundtrip_and_migration() -> void:
 	cl.load_save(cj)
 	_check(is_equal_approx(cl.component("rodas").integrity, 0.42) and cl.component("caldeira").level == 1, "save v4: integridade e reforço")
 	_check(cl.component("pistoes").has_auto() and is_equal_approx(cl.maintenance.stop_left, 7.0), "save v4: manutenção automática e parada em andamento")
+	# v5 (trechos antigos) -> v6: mesma posição relativa no mesmo trecho
+	var m5 := _new_state()
+	m5.load_save({"save_version": 5, "saved_at": 1.0, "stock": 0.0, "distance_m": 3500.0 + 7000.0 * 0.5, "best_station_count": 1})
+	_check(is_equal_approx(m5.train.distance_m, 3500.0 + 23800.0 * 0.5) and m5.route.reached_count == 1, "save v5: meio da Cidade Tomada continua no meio do trecho (%.0f m)" % m5.train.distance_m)
+	var m5b := _new_state()
+	m5b.load_save({"save_version": 5, "saved_at": 1.0, "stock": 0.0, "distance_m": 108500.0 + 10.0})
+	_check(m5b.route.reached_count == 5 and is_equal_approx(m5b.train.distance_m, m5b.route.target_distance(4) + 10.0 / 1300000.0 * 1550000.0), "save v5: logo depois do Ermo Gelado continua lá (%d estações)" % m5b.route.reached_count)
+	var m5c := _new_state()
+	m5c.load_save({"save_version": 5, "saved_at": 1.0, "stock": 0.0, "distance_m": 10250.0})
+	_check(m5c.route.reached_count == 1 and m5c.train.distance_m < m5c.route.target_distance(1), "save v5 esperando antes da estação nova: continua antes dela")
+	var m6 := _new_state()
+	m6.load_save(m5.to_save(1.0))
+	_check(is_equal_approx(m6.train.distance_m, m5.train.distance_m), "save v6 não converte de novo")
 	var v3 := _new_state()
 	v3.load_save({"save_version": 3, "saved_at": 1.0, "stock": 10.0, "tank": 100.0, "producers": {"foguista": 2}, "upgrades_purchased": [], "distance_m": 5000.0})
 	_check(is_equal_approx(v3.component("rodas").integrity, 1.0) and v3.component("rodas").level == 0, "save v3 abre com as peças a 100%")
@@ -582,6 +621,8 @@ func _simulate(cps: float, style: String = "cuidadoso", max_time: float = 3600.0
 			while click_acc >= 1.0 / cps:
 				click_acc -= 1.0 / cps
 				s.click()
+		if s.waiting_departure:
+			s.depart()   # o jogador ativo manda partir assim que a parada acaba
 		var r := s.tick(dt)
 		if r["station_stop"]:
 			stops += 1
@@ -622,15 +663,15 @@ func _fmt_minutes(times: Array[float]) -> String:
 func _test_simulation() -> void:
 	print("Simulação de ritmo (jogador que sempre faz a melhor compra e cuida do trem)")
 	for cps in [0.0, 1.0, 3.0]:
-		var r := _simulate(cps, "cuidadoso", 3600.0, 5)
+		var r := _simulate(cps, "cuidadoso", 3.0 * 3600.0, 5)
 		var reached: Array[float] = r["reached"]
 		print("    %.0f clique/s -> estações (min): %s | espera p/ melhoria da estação (s): %s" % [cps, _fmt_minutes(reached), r["upgrade_wait"]])
 		print("      compras/min: %s | níveis: %s | produção final %.0f/s, %.1f m/s" % [r["per_min"], r["levels"], r["production"], r["speed"]])
 		_check(reached.size() == 5, "%.0f clique/s: alcança as 5 estações" % cps)
 		if reached.size() == 5:
-			_check(reached[4] <= 60.0 * 60.0, "%.0f clique/s: Inverno em até 60 min (%.1f)" % [cps, reached[4] / 60.0])
+			_check(reached[4] >= 55.0 * 60.0 and reached[4] <= 90.0 * 60.0, "%.0f clique/s: Ermo Gelado entre 55 e 90 min (%.1f)" % [cps, reached[4] / 60.0])
 			_check(reached[0] >= 240.0 and reached[0] <= 420.0, "%.0f clique/s: 1ª estação entre 4 e 7 min (%.1f)" % [cps, reached[0] / 60.0])
-			_check(reached[3] <= 40.0 * 60.0, "%.0f clique/s: 4ª estação em até 40 min (%.1f)" % [cps, reached[3] / 60.0])
+			_check(reached[3] <= 55.0 * 60.0, "%.0f clique/s: 4ª estação em até 55 min (%.1f)" % [cps, reached[3] / 60.0])
 			var gaps_grow := (reached[3] - reached[2]) > (reached[2] - reached[1])
 			_check(gaps_grow, "%.0f clique/s: trechos finais ficam mais longos" % cps)
 		_check(r["stops"] == 5, "%.0f clique/s: parou na plataforma das 5 estações (%d)" % [cps, r["stops"]])
@@ -645,8 +686,8 @@ func _test_simulation() -> void:
 		_check(waits.size() == 5 and max_wait <= 120.0, "%.0f clique/s: cada melhoria de estação comprável em até 2 min após chegar (máx %.0f s)" % [cps, max_wait])
 
 	print("Simulação 1B: cuidar do trem x ignorar a manutenção (1 clique/s)")
-	var careful := _simulate(1.0, "cuidadoso", 3600.0, 5)
-	var ignore := _simulate(1.0, "ignora", 3600.0, 5)
+	var careful := _simulate(1.0, "cuidadoso", 3.0 * 3600.0, 5)
+	var ignore := _simulate(1.0, "ignora", 3.0 * 3600.0, 5)
 	for pair in [["cuidadoso", careful], ["ignora", ignore]]:
 		var r: Dictionary = pair[1]
 		var reached: Array[float] = r["reached"]
@@ -658,7 +699,7 @@ func _test_simulation() -> void:
 	if cr.size() == 5 and ir.size() == 5:
 		_check(cr[4] <= ir[4], "cuidar do trem chega antes de ignorar (%.1f x %.1f min)" % [cr[4] / 60.0, ir[4] / 60.0])
 		var pct: float = ignore["maintenance_time"] / (ignore["time"] - ir[0])
-		_check(pct <= 0.15, "ignorar a manutenção custa no máximo 15%% do tempo parado (%.1f%%)" % (pct * 100.0))
+		_check(pct <= 0.20, "ignorar a manutenção custa no máximo 20%% do tempo parado (%.1f%%)" % (pct * 100.0))
 		_check(careful["failures"] <= 1, "quem cuida quase não quebra (%d falhas)" % careful["failures"])
 		_check(ignore["first_failure"] < 0.0 or ignore["first_failure"] - ir[0] >= 180.0, "primeira falha pelo menos 3 min depois da Estação Inicial (%.1f min de jogo)" % (ignore["first_failure"] / 60.0))
 
@@ -680,13 +721,15 @@ func _test_long_route() -> void:
 	_check(r["stops"] == 10, "parou na plataforma das 10 estações (%d)" % r["stops"])
 	if reached.size() < 10:
 		return
-	var grows := true
-	for i in range(5, 10):
-		grows = grows and gaps[i] > gaps[i - 1]
-	_check(grows, "a partir da 5ª região cada trecho é mais longo que o anterior")
-	_check(gaps[5] >= 30.0 * 60.0 and gaps[5] <= 60.0 * 60.0, "Galerias de Pedra entre 30 e 60 min (%.0f)" % (gaps[5] / 60.0))
-	_check(gaps[9] >= 6.0 * 3600.0 and gaps[9] <= 10.0 * 3600.0, "Mar de Cinzas entre 6 e 10 h (%.1f)" % (gaps[9] / 3600.0))
-	_check(reached[9] >= 14.0 * 3600.0 and reached[9] <= 24.0 * 3600.0, "rota inteira entre 14 e 24 h de jogo ativo (%.1f)" % (reached[9] / 3600.0))
+	# Curva: cada trecho cerca de 1,6x o anterior (1,4x a 1,8x).
+	var curve := true
+	for i in range(1, 10):
+		var ratio := gaps[i] / gaps[i - 1]
+		curve = curve and ratio >= 1.4 and ratio <= 1.8
+	_check(curve, "cada trecho é cerca de 1,6x o anterior")
+	_check(gaps[5] >= 40.0 * 60.0 and gaps[5] <= 60.0 * 60.0, "Galerias de Pedra entre 40 e 60 min (%.0f)" % (gaps[5] / 60.0))
+	_check(gaps[9] >= 4.5 * 3600.0 and gaps[9] <= 6.5 * 3600.0, "Mar de Cinzas entre 4,5 e 6,5 h (%.1f)" % (gaps[9] / 3600.0))
+	_check(reached[9] >= 12.0 * 3600.0 and reached[9] <= 17.0 * 3600.0, "rota inteira entre 12 e 17 h de jogo ativo (%.1f)" % (reached[9] / 3600.0))
 	var max_wait := 0.0
 	for w in r["upgrade_wait"]:
 		max_wait = maxf(max_wait, w)

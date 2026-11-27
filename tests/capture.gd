@@ -21,6 +21,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var game := _main.get_node("Game")
 	var view := _main.get_node("TrainView")
+	_main.get_node("PatchNotes").close()   # pode abrir sozinha (versão nova)
 	for t in THEMES:
 		var station: int = t[1]
 		if station >= 0:
@@ -53,6 +54,9 @@ func _ready() -> void:
 	view._on_train_state_changed(TrainMovement.State.AT_STATION)
 	view._on_speed_changed(0.0, 0.0, 0.0)
 	game.set_process(false)
+	game.state.train.state = TrainMovement.State.AT_STATION   # placa com o botão Partir
+	game.state.waiting_departure = true
+	_main.get_node("HUD")._refresh_state_label()
 	for i in 40:
 		await get_tree().process_frame
 	get_viewport().get_texture().get_image().save_png(out.path_join("estacao.png"))
@@ -64,6 +68,7 @@ func _ready() -> void:
 		await get_tree().process_frame
 	get_viewport().get_texture().get_image().save_png(out.path_join("partida.png"))
 	print("capturado: partida")
+	game.state.waiting_departure = false
 	game.set_process(true)
 	# menu de opções aberto (jogo pausado)
 	_main.get_node("OptionsMenu").open()
@@ -71,6 +76,12 @@ func _ready() -> void:
 		await get_tree().process_frame
 	get_viewport().get_texture().get_image().save_png(out.path_join("menu.png"))
 	print("capturado: menu")
+	_main.get_node("PatchNotes").open()
+	for i in 30:
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(out.path_join("notas.png"))
+	print("capturado: notas")
+	_main.get_node("PatchNotes").close()
 	_main.get_node("OptionsMenu").close()
 	SaveManager.delete_save()
 	get_tree().quit()

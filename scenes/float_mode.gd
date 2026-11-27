@@ -50,6 +50,8 @@ var _layer: CanvasLayer
 var _coal_label: Label
 var _coal_box: HBoxContainer
 var _plus: Button
+## "Partir": aparece na barra quando o trem espera na estação (a HUD fica escondida).
+var _depart: Button
 var _music: Button
 var _sfx: Button
 var _restore: Button
@@ -69,6 +71,9 @@ func _ready() -> void:
 	_build_bar()
 	EventBus.stock_changed.connect(_on_stock_changed)
 	EventBus.game_loaded.connect(func(): _on_stock_changed(_amount()))
+	EventBus.train_state_changed.connect(func(_s): _refresh_depart())
+	EventBus.auto_depart_changed.connect(func(_on): _refresh_depart())
+	EventBus.game_loaded.connect(_refresh_depart)
 	get_window().size_changed.connect(_on_window_resized)
 	var view := get_node_or_null(view_path)
 	if view:
@@ -335,6 +340,19 @@ func _amount() -> float:
 	return game.state.stock.amount if game and game.state else 0.0
 
 
+func _refresh_depart() -> void:
+	var game := get_node_or_null(game_path)
+	if _depart == null or game == null or game.state == null:
+		return
+	_depart.visible = game.state.train.state == TrainMovement.State.AT_STATION and not game.state.auto_depart
+
+
+func _on_depart_pressed() -> void:
+	var game := get_node_or_null(game_path)
+	if game:
+		game.depart()
+
+
 func _on_stock_changed(amount: float) -> void:
 	if _coal_label:
 		_coal_label.text = NumFormat.amount(amount)
@@ -373,6 +391,11 @@ func _build_bar() -> void:
 	_plus.name = "ShopButton"
 	_plus.add_theme_font_size_override("font_size", 15)
 	_coal_box.add_child(_plus)
+	_depart = _make_button("Partir", "O trem espera na estação: clique para partir", _on_depart_pressed)
+	_depart.name = "DepartButton"
+	_depart.add_theme_font_size_override("font_size", 13)
+	_depart.visible = false
+	_coal_box.add_child(_depart)
 
 	# som, voltar e fechar (canto inferior direito)
 	var right := HBoxContainer.new()
