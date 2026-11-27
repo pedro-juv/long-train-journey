@@ -7,6 +7,23 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.9.0] — 2026-11-27 · Ritmo proporcional e botão Partir
+
+**Ritmo**
+- Cada trecho agora leva cerca de 1,6x o anterior, sem o salto que havia do
+  Ermo Gelado para as Galerias de Pedra
+- As primeiras estações continuam rápidas (a 1ª em ~5 min); o Ermo Gelado chega
+  em ~1 h 15 e a rota inteira em ~14 h de jogo ativo (antes ~18 h)
+- Saves antigos são convertidos: o trem fica na mesma posição do trecho
+
+**Estações**
+- Ao chegar numa estação, o trem espera você clicar em **Partir**
+- Nova opção **Partir sozinho** no menu (desligada por padrão): ligada, o trem
+  parte sozinho depois de 5 s, como antes
+- No trem flutuante, o botão Partir aparece na barrinha
+- Se o jogo fechar com o trem esperando, ele continua parado na estação (a
+  produção continua) e o resumo avisa
+
 ## [0.8.1] — 2026-11-26 · Atalho da caldeira
 
 - Espaço atiça a caldeira (mesmo efeito do clique no botão, que continua

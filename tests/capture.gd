@@ -53,6 +53,9 @@ func _ready() -> void:
 	view._on_train_state_changed(TrainMovement.State.AT_STATION)
 	view._on_speed_changed(0.0, 0.0, 0.0)
 	game.set_process(false)
+	game.state.train.state = TrainMovement.State.AT_STATION   # placa com o botão Partir
+	game.state.waiting_departure = true
+	_main.get_node("HUD")._refresh_state_label()
 	for i in 40:
 		await get_tree().process_frame
 	get_viewport().get_texture().get_image().save_png(out.path_join("estacao.png"))
@@ -64,6 +67,7 @@ func _ready() -> void:
 		await get_tree().process_frame
 	get_viewport().get_texture().get_image().save_png(out.path_join("partida.png"))
 	print("capturado: partida")
+	game.state.waiting_departure = false
 	game.set_process(true)
 	# menu de opções aberto (jogo pausado)
 	_main.get_node("OptionsMenu").open()

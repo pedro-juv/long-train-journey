@@ -6,7 +6,12 @@ extends RefCounted
 ## jogo quanto nos testes automatizados. Não emite sinais: devolve o que
 ## aconteceu e o GameController repassa para a interface pelo EventBus.
 
-const SAVE_VERSION := 5
+const SAVE_VERSION := 6
+## Trechos da rota até o save v5 (v0.8.1). No v6 os trechos mudaram (curva
+## x1,6): saves antigos têm a distância convertida para a mesma posição
+## relativa dentro do mesmo trecho.
+const LEGACY_STATION_LENGTHS := [3500.0, 7000.0, 14000.0, 28000.0, 56000.0,
+	1300000.0, 6500000.0, 28000000.0, 113000000.0, 350000000.0]
 
 var config  # o Balance (ou um objeto com os mesmos campos)
 
@@ -27,6 +32,11 @@ var stoke: float = 0.0
 var stop_at_stations: bool = true
 ## Segundos que faltam parado na estação atual (0 = não está parado).
 var station_stop_left: float = 0.0
+## Preferência do jogador: partir sozinho depois da parada (desligada = o trem
+## espera o jogador mandar partir com depart()).
+var auto_depart: bool = false
+## Parado na estação esperando o jogador mandar partir.
+var waiting_departure: bool = false
 ## Quantas estações o jogador já alcançou na viagem mais longa (salvo; um
 ## futuro reset volta o trem, mas não esquece as estações conhecidas).
 var best_station_count: int = 0
@@ -265,14 +275,18 @@ func tick(delta: float) -> Dictionary:
 	var previous_state := train.state
 	var cruise := cruise_speed()
 
-	# Parado na plataforma.
-	if station_stop_left > 0.0:
+	# Parado na plataforma (contando a parada ou esperando o jogador).
+	if is_at_station():
 		train.hold(TrainMovement.State.AT_STATION, cruise)
-		station_stop_left -= delta
-		if station_stop_left <= 0.0:
-			station_stop_left = 0.0
-			train.state = TrainMovement.State.ACCELERATING
-			result["departed"] = true
+		if station_stop_left > 0.0:
+			station_stop_left -= delta
+			if station_stop_left <= 0.0:
+				station_stop_left = 0.0
+				if auto_depart:
+					train.state = TrainMovement.State.ACCELERATING
+					result["departed"] = true
+				else:
+					waiting_departure = true
 		result["state_changed"] = train.state != previous_state
 		return result
 
@@ -307,6 +321,38 @@ func tick(delta: float) -> Dictionary:
 	return result
 
 
+## Converte uma distância dos trechos antigos (save até v5) para a mesma
+## posição relativa (mesmo trecho, mesma fração) na rota atual.
+func legacy_distance_to_current(old_distance: float) -> float:
+	var old_start := 0.0
+	var new_start := 0.0
+	var n := mini(LEGACY_STATION_LENGTHS.size(), route.station_count())
+	for i in n:
+		var old_len: float = LEGACY_STATION_LENGTHS[i]
+		var new_len: float = route.target_distance(i) - new_start
+		if old_distance < old_start + old_len:
+			return new_start + (old_distance - old_start) / old_len * new_len
+		old_start += old_len
+		new_start += new_len
+	return new_start + (old_distance - old_start)   # depois do fim da rota
+
+
+## Parado na plataforma de uma estação (contando a parada ou esperando partir).
+func is_at_station() -> bool:
+	return station_stop_left > 0.0 or waiting_departure
+
+
+## O jogador manda partir (com "Partir sozinho" desligado). Pode partir já
+## durante a parada. Retorna false se o trem não está parado numa estação.
+func depart() -> bool:
+	if not is_at_station():
+		return false
+	station_stop_left = 0.0
+	waiting_departure = false
+	train.state = TrainMovement.State.ACCELERATING
+	return true
+
+
 ## Aplica `elapsed_seconds` de progresso offline. Retorna o resumo:
 ## { "seconds", "stock_delta", "distance", "stations": [índices], "failures",
 ##   "downtime", "auto_repairs", "auto_cost", "waiting_at_station",
@@ -327,6 +373,9 @@ func apply_offline(elapsed_seconds: float) -> Dictionary:
 	if config.offline_stop_before_new_station and known < route.station_count():
 		waiting_for = known
 		max_distance = maxf(0.0, route.target_distance(known) - config.offline_wait_distance_m - train.distance_m)
+	if waiting_departure:
+		max_distance = 0.0   # parado na estação esperando o jogador mandar partir
+		waiting_for = -1
 
 	var result := OfflineProgress.simulate(seconds * move_frac, total_production(), stock.amount, train,
 		maintenance, route, max_distance, coal_rate)
@@ -338,9 +387,10 @@ func apply_offline(elapsed_seconds: float) -> Dictionary:
 	train.distance_m += distance
 	var reached := route.update(train.distance_m)
 	_apply_region()
-	# Ao abrir, o trem parte do zero e segue viagem.
+	# Ao abrir, o trem parte do zero e segue viagem (ou continua esperando na
+	# estação o jogador mandar partir).
 	train.current_speed = 0.0
-	train.state = TrainMovement.State.ACCELERATING
+	train.state = TrainMovement.State.AT_STATION if waiting_departure else TrainMovement.State.ACCELERATING
 	var waiting: bool = result["waiting_at_station"] or (waiting_for >= 0 and is_equal_approx(max_distance, 0.0))
 	return {
 		"seconds": seconds,
@@ -353,6 +403,7 @@ func apply_offline(elapsed_seconds: float) -> Dictionary:
 		"auto_cost": result["auto_cost"],
 		"waiting_at_station": waiting,
 		"waiting_station": waiting_for if waiting else -1,
+		"waiting_departure": waiting_departure,
 	}
 
 
@@ -440,6 +491,8 @@ func to_save(saved_at_unix: float) -> Dictionary:
 		"saved_at": saved_at_unix,
 		"stock": stock.amount,
 		"stop_at_stations": stop_at_stations,
+		"auto_depart": auto_depart,
+		"waiting_departure": waiting_departure or (station_stop_left > 0.0 and not auto_depart),
 		"producers": levels,
 		"upgrades_purchased": upgrades.purchased_ids(),
 		"distance_m": train.distance_m,
@@ -450,11 +503,13 @@ func to_save(saved_at_unix: float) -> Dictionary:
 	}
 
 
-## Carrega um save (v1 a v5). Saves sem componentes começam com tudo a 100%. As estações alcançadas são recalculadas
+## Carrega um save (v1 a v6). Saves sem componentes começam com tudo a 100%. As estações alcançadas são recalculadas
 ## pela distância, sem disparar eventos.
 func load_save(data: Dictionary) -> void:
 	var version := int(data.get("save_version", 1))
 	train.distance_m = maxf(0.0, float(data.get("distance_m", 0.0)))
+	if version < 6:
+		train.distance_m = legacy_distance_to_current(train.distance_m)
 	route.update(train.distance_m)
 	best_station_count = maxi(route.reached_count, int(data.get("best_station_count", 0)))
 
@@ -481,6 +536,10 @@ func load_save(data: Dictionary) -> void:
 	if version < 5:
 		stock.amount += maxf(0.0, float(data.get("tank", 0.0)))
 	stop_at_stations = bool(data.get("stop_at_stations", true))
+	auto_depart = bool(data.get("auto_depart", false))
+	waiting_departure = bool(data.get("waiting_departure", false)) and route.reached_count > 0 and not route.is_complete()
+	if waiting_departure:
+		train.hold(TrainMovement.State.AT_STATION, 0.0)
 
 	if version >= 4:
 		var saved: Dictionary = data.get("components", {})

@@ -29,6 +29,8 @@ const SPEED_GAUGE_MAX := 60.0
 @onready var _production_label: Label = %ProductionLabel
 @onready var _state_label: Label = %StateLabel
 @onready var _state_plate: PanelContainer = %StatePlate
+## Botão "Partir" (na placa de estado), quando o trem espera o jogador.
+var _depart_button: Button
 @onready var _speed_label: Label = %SpeedLabel
 @onready var _speed_hint: Label = %SpeedHint
 @onready var _distance_label: Label = %DistanceLabel
@@ -97,6 +99,8 @@ func _ready() -> void:
 	EventBus.game_loaded.connect(_on_game_loaded)
 	EventBus.component_failed.connect(_on_component_failed)
 	EventBus.component_repaired.connect(_on_component_repaired)
+	EventBus.auto_depart_changed.connect(func(_on): _refresh_state_label())
+	_add_depart_button()
 	EventBus.component_reinforced.connect(_on_component_reinforced)
 	EventBus.maintenance_finished.connect(_on_maintenance_finished)
 	_production_tab.pressed.connect(_select_tab.bind("producao"))
@@ -182,6 +186,21 @@ func _state() -> GameState:
 	return _game.state
 
 
+## "Partir": aparece na placa de estado com o trem parado numa estação e
+## "Partir sozinho" desligado.
+func _add_depart_button() -> void:
+	_depart_button = Button.new()
+	_depart_button.name = "DepartButton"
+	_depart_button.text = "PARTIR"
+	_depart_button.custom_minimum_size = Vector2(180, 44)
+	_depart_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_depart_button.add_theme_font_size_override("font_size", 20)
+	_depart_button.focus_mode = Control.FOCUS_NONE
+	_depart_button.visible = false
+	_depart_button.pressed.connect(func(): _game.depart())
+	_state_label.get_parent().add_child(_depart_button)
+
+
 # ---------------------------------------------------------------------------
 # Pele da estação do ano
 # ---------------------------------------------------------------------------
@@ -221,6 +240,13 @@ func _apply_skin(theme_id: String) -> void:
 	_message_label.add_theme_color_override("font_color", accent.lerp(Color.WHITE, 0.4))
 	# botão de atiçar: grande e vermelho
 	_click_button.add_theme_stylebox_override("normal", HudSkin.button_style(HudSkin.WINE_LIGHT))
+	if _depart_button:
+		_depart_button.add_theme_stylebox_override("normal", HudSkin.button_style(HudSkin.BRASS_DARK))
+		_depart_button.add_theme_stylebox_override("hover", HudSkin.button_style(HudSkin.BRASS_DARK.lightened(0.15)))
+		_depart_button.add_theme_stylebox_override("pressed", HudSkin.button_style(HudSkin.BRASS_DARK.darkened(0.2), true))
+		_depart_button.add_theme_color_override("font_color", Color.WHITE)
+		_depart_button.add_theme_color_override("font_outline_color", HudSkin.INK)
+		_depart_button.add_theme_constant_override("outline_size", 5)
 	_click_button.add_theme_stylebox_override("hover", HudSkin.button_style(HudSkin.WINE_LIGHT.lightened(0.12)))
 	_click_button.add_theme_stylebox_override("pressed", HudSkin.button_style(HudSkin.WINE, true))
 	_speed_gauge.set_accent(accent)
@@ -381,8 +407,14 @@ func _refresh_state_label() -> void:
 			text = "Chegando em %s..." % s.route.next_station_name()
 		TrainMovement.State.AT_STATION:
 			var index := s.route.reached_count - 1
-			text = "Parado em %s — partida em %d s" % [s.route.station_name(index), int(ceil(s.station_stop_left))]
+			if s.auto_depart:
+				text = "Parado em %s — partida em %d s" % [s.route.station_name(index), int(ceil(s.station_stop_left))]
+			else:
+				text = "Parado em %s — clique em Partir quando quiser" % s.route.station_name(index)
 	var show := not text.is_empty()
+	var can_depart := s.train.state == TrainMovement.State.AT_STATION and not s.auto_depart
+	if _depart_button.visible != can_depart:
+		_depart_button.visible = can_depart
 	_state_label.visible = show
 	_state_label.text = text
 	if show and not _state_plate.visible:
@@ -452,7 +484,7 @@ func _on_upgrade_purchased(id: String) -> void:
 ## (ao carregar o jogo não avisa: a região já é conhecida).
 func _check_region_rule() -> void:
 	var st := _state()
-	if st.station_stop_left > 0.0:
+	if st.is_at_station():
 		return
 	var region := st.current_region()
 	if region == _announced_region:
@@ -500,6 +532,8 @@ func _on_offline_summary(summary: Dictionary) -> void:
 	var waiting := int(summary.get("waiting_station", -1))
 	if waiting >= 0:
 		lines.append("O trem parou antes da %s e esperou você para chegar." % _station_title(_state().route.station_name(waiting)))
+	if bool(summary.get("waiting_departure", false)):
+		lines.append("O trem continua parado na %s: clique em Partir." % _station_title(_state().route.station_name(_state().route.reached_count - 1)))
 	_offline_text.text = "\n".join(lines)
 	_offline_popup.visible = not floating
 	_pop_in(_offline_popup)

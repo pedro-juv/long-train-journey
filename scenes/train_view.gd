@@ -267,7 +267,7 @@ func _on_game_loaded() -> void:
 
 ## Região em que o trem está agora (muda ao sair da estação).
 func _region_now(st: GameState) -> String:
-	return SeasonThemes.id_for_route(st.route, st.station_stop_left > 0.0)
+	return SeasonThemes.id_for_route(st.route, st.is_at_station())
 
 
 ## Confere a região e, se mudou, começa a transição (cores, céu, música).

@@ -120,6 +120,10 @@ func _run() -> void:
 	_check(audio.current_music_theme() == "tomada", "música na variação da Cidade Tomada (%s)" % audio.current_music_theme())
 	_check(g.state.train.state == TrainMovement.State.AT_STATION and g.state.station_stop_left > 0.0, "o trem para na plataforma da Cidade Tomada")
 	_check(hud.get_node("%StateLabel").visible and hud.get_node("%StateLabel").text.contains("Parado em Cidade Tomada"), "estado mostra a parada na estação")
+	_check(hud._depart_button.visible and hud.get_node("%StateLabel").text.contains("Partir"), "botão Partir aparece na parada (Partir sozinho desligado por padrão)")
+	hud._depart_button.pressed.emit()
+	await get_tree().process_frame
+	_check(not g.state.is_at_station() and not hud._depart_button.visible, "botão Partir: o trem sai da estação e o botão some")
 	g.set_stop_at_stations(false)
 	_check(not _menu().get_node("%StopSwitch").on, "chave Parada automática do menu acompanha a preferência")
 	g.state.station_stop_left = 0.0
@@ -195,7 +199,7 @@ func _run() -> void:
 	print("Save")
 	g.save_now()
 	var saved: Dictionary = SaveManager.load_game()
-	_check(int(saved.get("save_version", 0)) == 5 and saved.has("saved_at") and saved.has("components") and saved.has("stop_at_stations"), "save v5 com horário, componentes e preferência de parada")
+	_check(int(saved.get("save_version", 0)) == 6 and saved.has("saved_at") and saved.has("components") and saved.has("stop_at_stations"), "save v6 com horário, componentes e preferência de parada")
 	_check(int(saved["producers"]["carvoaria"]) == 4, "save guarda os níveis")
 
 	print("Aba Trem")
@@ -241,7 +245,7 @@ func _run() -> void:
 
 	# --- 2b. Ruínas Brancas: manutenção automática e resumo de paradas ---------------
 	_write_save({"save_version": 4, "saved_at": now - 86400.0, "stock": 1e9, "tank": 100.0,
-		"producers": {"foguista": 30, "carvoaria": 20}, "upgrades_purchased": [], "distance_m": 60000.0,
+		"producers": {"foguista": 30, "carvoaria": 20}, "upgrades_purchased": [], "distance_m": 100000.0,
 		"components": {}})
 	await _open_game()
 	print("Ruínas Brancas: manutenção automática")
@@ -297,6 +301,9 @@ func _run() -> void:
 	var stop_before: bool = game.state.stop_at_stations
 	menu.get_node("%StopSwitch").toggle()
 	_check(game.state.stop_at_stations == not stop_before, "chave Parada automática alterna a preferência")
+	var depart_before: bool = game.state.auto_depart
+	menu._depart_switch.toggle()
+	_check(game.state.auto_depart == not depart_before, "chave Partir sozinho alterna a preferência")
 	await _press_esc()
 	_check(not menu.is_open and not get_tree().paused, "ESC fecha o menu e retoma o jogo")
 	await get_tree().create_timer(0.3).timeout
@@ -305,10 +312,12 @@ func _run() -> void:
 	menu.get_node("%BackButton").pressed.emit()
 	_check(not menu.is_open and not get_tree().paused, "botão Voltar ao jogo fecha e retoma")
 	var stop_now: bool = game.state.stop_at_stations
+	var depart_now: bool = game.state.auto_depart
 	# reabrir o jogo: tudo continua como o jogador deixou
 	await _open_game()
 	_check(_main.get_node("AudioDirector").music_enabled == not music_before and _main.get_node("AudioDirector").sfx_enabled == not sfx_before, "música e efeitos persistem ao reabrir o jogo")
 	_check(_game().state.stop_at_stations == stop_now and _menu().get_node("%StopSwitch").on == stop_now, "parada automática persiste ao reabrir o jogo")
+	_check(_game().state.auto_depart == depart_now and _menu()._depart_switch.on == depart_now, "Partir sozinho persiste ao reabrir o jogo")
 	# reiniciar partida pelo menu: pede confirmação e mantém as preferências
 	_menu().open()
 	_menu().get_node("%ResetButton").pressed.emit()
@@ -316,6 +325,7 @@ func _run() -> void:
 	_menu().get_node("%ResetButton").pressed.emit()
 	_check(_game().state.producer("foguista").level == 0 and _game().state.train.distance_m == 0.0, "reiniciar zera a partida")
 	_check(_game().state.stop_at_stations == stop_now, "reiniciar mantém a parada automática")
+	_check(_game().state.auto_depart == depart_now, "reiniciar mantém Partir sozinho")
 	_check(not get_tree().paused and not _menu().is_open, "reiniciar fecha o menu e despausa")
 	_check(_hud().get_node("%MessageLabel").text.contains("reiniciada"), "aviso de partida reiniciada")
 
@@ -339,6 +349,19 @@ func _run() -> void:
 	_check(g.state.train.distance_m > dist_before, "o trem continua andando na janelinha")
 	_check(not view._layers["SkyGradient"].visible and not view._layers["Mountains"].visible and not view._layers["Darkness"].visible, "céu, montanhas e escuridão somem (desktop por trás)")
 	_check(view._layers["Trees"].visible and view._layers["Poles"].visible and view._layers["LocoBody"].visible and view._layers["Rail"].visible, "trem, trilho, árvores e postes ficam")
+	# trem esperando na estação dentro da janelinha: botão Partir na barra
+	var f_dep: Button = fm.get_node("FloatBar/Coal/DepartButton")
+	var f_auto: bool = g.state.auto_depart
+	g.set_auto_depart(false)
+	_check(not f_dep.visible, "janelinha: Partir escondido com o trem andando")
+	g.state.station_stop_left = 2.0
+	g.state.train.state = TrainMovement.State.AT_STATION
+	EventBus.train_state_changed.emit(g.state.train.state)
+	_check(f_dep.visible, "janelinha: Partir aparece com o trem na estação")
+	f_dep.pressed.emit()
+	await get_tree().process_frame
+	_check(not g.state.is_at_station() and not f_dep.visible, "janelinha: Partir faz o trem sair")
+	g.set_auto_depart(f_auto)
 	var has_window := DisplayServer.get_name() != "headless"   # headless ignora a janela
 	if has_window:
 		_check(get_window().transparent_bg and get_window().borderless and get_window().always_on_top, "janela sem borda, fundo transparente e sempre no topo")
