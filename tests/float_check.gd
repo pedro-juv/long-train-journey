@@ -42,6 +42,13 @@ func _run() -> void:
 	var had_save := FileAccess.file_exists(save_path)
 	if had_save:
 		DirAccess.copy_absolute(save_path, backup)
+	# configurações: backup antes de abrir o jogo (as notas da versão marcam "vista")
+	var cfg_path := ProjectSettings.globalize_path("user://settings.cfg")
+	var cfg_backup := ProjectSettings.globalize_path("user://settings_backup_float.cfg")
+	var had_cfg := FileAccess.file_exists(cfg_path)
+	if had_cfg:
+		DirAccess.copy_absolute(cfg_path, cfg_backup)
+	PatchNotes.mark_seen()   # as notas não abrem por cima da janelinha
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
 	await _frames(30)
@@ -58,17 +65,13 @@ func _run() -> void:
 	await get_tree().create_timer(1.6, true).timeout
 	var board_home := board.position
 	# sem tamanho salvo: começa no tamanho padrão
-	var cfg_path := ProjectSettings.globalize_path("user://settings.cfg")
-	var cfg_backup := ProjectSettings.globalize_path("user://settings_backup_float.cfg")
-	var had_cfg := FileAccess.file_exists(cfg_path)
 	if had_cfg:
-		DirAccess.copy_absolute(cfg_path, cfg_backup)
 		var cfg := ConfigFile.new()
 		cfg.load(cfg_path)
 		if cfg.has_section("float"):
 			cfg.erase_section("float")
 		cfg.save(cfg_path)
-	menu.get_node("Root/Board/Margin/VBox/FloatButton").pressed.emit()
+	menu.get_node("Root/Board/Margin/VBox/ExtraRow/FloatButton").pressed.emit()
 	await _frames(90)
 	print("janela: ", win.size, " em ", win.position, "  tela útil: ", DisplayServer.screen_get_usable_rect(win.current_screen))
 	_check(win.borderless and win.always_on_top and win.transparent and win.transparent_bg, "sem borda, sempre no topo, transparente")
