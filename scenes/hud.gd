@@ -57,6 +57,8 @@ const C_BRASS := HudSkin.BRASS
 const C_CREAM := HudSkin.CREAM
 
 var _message_timer: float = 0.0
+## Região cuja regra já foi avisada (o aviso sai na partida rumo a ela).
+var _announced_region: String = ""
 var _shop_timer: float = 0.0
 
 ## Linhas da loja: id do produtor -> { "info": Label, "detail": Label, "button": Button }
@@ -163,6 +165,7 @@ func _process(delta: float) -> void:
 		_click_button.text = "ATIÇAR A CALDEIRA\n+%s carvão" % NumFormat.rate(_state().click_value())
 		_refresh_maintenance_status()
 		_refresh_state_label()
+		_check_region_rule()
 	var stoke := _state().stoke
 	_pressure_gauge.set_reading(stoke, "+%d%%" % roundi(_state().stoke_bonus() * 100.0))
 
@@ -443,7 +446,23 @@ func _on_upgrade_purchased(id: String) -> void:
 		_show_message("Comprado: %s." % entry["name"])
 
 
+## Avisa a regra da região nova quando o trem sai da estação rumo a ela
+## (ao carregar o jogo não avisa: a região já é conhecida).
+func _check_region_rule() -> void:
+	var st := _state()
+	if st.station_stop_left > 0.0:
+		return
+	var region := st.current_region()
+	if region == _announced_region:
+		return
+	_announced_region = region
+	var text := str(st.region_effect().get("text", ""))
+	if text != "":
+		_show_message(text)
+
+
 func _on_game_loaded() -> void:
+	_announced_region = _state().current_region()
 	_rebuild_shop()
 	_refresh_station(_state().train.distance_m)
 	_message_label.text = ""
@@ -622,6 +641,18 @@ func _refresh_shop() -> void:
 
 
 func _effect_text(entry: Dictionary) -> String:
+	match entry["effect"]:
+		"wear_mult":
+			var names: Array[String] = []
+			for cid in entry["target"]:
+				names.append(_state().component(cid).display_name)
+			return "%s gastam %d%% menos" % [" e ".join(names), roundi((1.0 - float(entry["value"])) * 100.0)]
+		"material":
+			var comp := _state().component(entry["target"])
+			for m in comp.materials:
+				if m["id"] == entry["value"]:
+					return "%s duram %sx mais (a manutenção automática volta a ser comprada)" % [comp.display_name, NumFormat.rate(float(m.get("life_mult", 1.0)))]
+			return ""
 	var value := float(entry["value"])
 	match entry["effect"]:
 		"producer_mult":

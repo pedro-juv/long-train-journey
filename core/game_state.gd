@@ -30,6 +30,10 @@ var station_stop_left: float = 0.0
 ## Quantas estações o jogador já alcançou na viagem mais longa (salvo; um
 ## futuro reset volta o trem, mas não esquece as estações conhecidas).
 var best_station_count: int = 0
+## Regra da região atual (Balance.region_effects): multiplicador de produção.
+var region_production: float = 1.0
+## Peça -> multiplicador de desgaste vindo das melhorias (wear_mult).
+var _wear_upgrades: Dictionary = {}
 
 var _producer_by_id: Dictionary = {}
 
@@ -43,6 +47,8 @@ func _init(p_config) -> void:
 		_producer_by_id[p.id] = p
 	upgrades = Upgrades.new(config.upgrades)
 	train = TrainMovement.new(config.train_base_speed, config.train_speed_factor, config.train_speed_exponent)
+	train.soft_knee = config.train_speed_soft_knee
+	train.soft_exponent = config.train_speed_soft_exponent
 	train.accel_seconds = config.train_accel_seconds
 	train.brake_seconds = config.train_brake_seconds
 	train.station_brake_seconds = config.train_station_brake_seconds
@@ -66,12 +72,12 @@ func total_production() -> float:
 	var total := 0.0
 	for p in producers:
 		total += p.output_per_second()
-	return total * global_multiplier
+	return total * global_multiplier * region_production
 
 
 ## Produção de um produtor com o multiplicador global (para a loja).
 func producer_production(id: String) -> float:
-	return producer(id).output_per_second() * global_multiplier
+	return producer(id).output_per_second() * global_multiplier * region_production
 
 
 ## Carvão por clique: parte fixa + fração da produção, vezes as pás.
@@ -108,7 +114,7 @@ func can_buy_producer(id: String) -> bool:
 ## Produção total se o produtor `id` subir um nível (para a loja).
 func production_after_level_up(id: String) -> float:
 	var p := producer(id)
-	return total_production() + (p.output_at_level(p.level + 1) - p.output_per_second()) * global_multiplier
+	return total_production() + (p.output_at_level(p.level + 1) - p.output_per_second()) * global_multiplier * region_production
 
 
 ## A condição "requires" da melhoria foi cumprida? (aparece na loja)
@@ -291,6 +297,8 @@ func tick(delta: float) -> Dictionary:
 	if maintenance.is_stopped() and not failing:
 		train.state = TrainMovement.State.BRAKING  # começou a frear agora
 	result["stations"] = route.update(train.distance_m)
+	if not result["stations"].is_empty():
+		_apply_region()   # entrou numa região nova
 	if not result["stations"].is_empty() and is_finite(stop_at) and train.distance_m >= stop_at:
 		station_stop_left = config.station_stop_seconds
 		train.hold(TrainMovement.State.AT_STATION, cruise)
@@ -329,6 +337,7 @@ func apply_offline(elapsed_seconds: float) -> Dictionary:
 		distance = max_distance  # para exatamente no ponto de espera
 	train.distance_m += distance
 	var reached := route.update(train.distance_m)
+	_apply_region()
 	# Ao abrir, o trem parte do zero e segue viagem.
 	train.current_speed = 0.0
 	train.state = TrainMovement.State.ACCELERATING
@@ -363,25 +372,55 @@ func _recalculate_multipliers() -> void:
 	global_multiplier = 1.0
 	click_multiplier = 1.0
 	maintenance.time_multiplier = 1.0
-	train.speed_multiplier = 1.0 + reinforce_speed_bonus()
+	_wear_upgrades = {}
 	for p in producers:
 		p.upgrade_multiplier = 1.0
 	for id in upgrades.purchased_ids():
 		var entry := upgrades.get_entry(id)
-		var value := float(entry["value"])
 		match entry["effect"]:
 			"global_mult":
-				global_multiplier *= value
+				global_multiplier *= float(entry["value"])
 			"click_mult":
-				click_multiplier *= value
+				click_multiplier *= float(entry["value"])
 			"maintenance_time_mult":
-				maintenance.time_multiplier *= value
+				maintenance.time_multiplier *= float(entry["value"])
 			"producer_mult":
 				var target := producer(entry["target"])
 				if target:
-					target.upgrade_multiplier *= value
+					target.upgrade_multiplier *= float(entry["value"])
+			"wear_mult":
+				for cid in entry["target"]:
+					_wear_upgrades[cid] = float(_wear_upgrades.get(cid, 1.0)) * float(entry["value"])
+			"material":
+				var comp := component(entry["target"])
+				if comp:
+					comp.set_material(str(entry["value"]))
 			_:
 				push_warning("GameState: efeito desconhecido '%s' em %s" % [entry["effect"], id])
+	_apply_region()
+
+
+## Tema da região em que o trem está (o do trecho até a próxima estação).
+func current_region() -> String:
+	var count := route.station_count()
+	if count == 0:
+		return ""
+	return str(route.stations[clampi(route.reached_count, 0, count - 1)].get("theme", ""))
+
+
+## Regra da região atual ({} quando a região não tem regra).
+func region_effect() -> Dictionary:
+	return config.region_effects.get(current_region(), {})
+
+
+## Aplica a regra da região: produção, velocidade e desgaste das peças.
+func _apply_region() -> void:
+	var fx := region_effect()
+	region_production = float(fx.get("production", 1.0))
+	train.speed_multiplier = (1.0 + reinforce_speed_bonus()) * float(fx.get("speed", 1.0))
+	var wear: Dictionary = fx.get("wear", {})
+	for c in maintenance.components:
+		c.wear_multiplier = float(wear.get(c.id, 1.0)) * float(_wear_upgrades.get(c.id, 1.0))
 
 
 # ---------------------------------------------------------------------------

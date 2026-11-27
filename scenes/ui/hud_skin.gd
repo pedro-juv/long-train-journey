@@ -31,6 +31,11 @@ const SKINS := {
 	"deserto": {"accent": Color(0.94, 0.56, 0.24), "panel": Color(0.16, 0.12, 0.10), "deco": "sun", "stamp": "DESERTO"},
 	"ruinas": {"accent": Color(0.90, 0.89, 0.82), "panel": Color(0.14, 0.14, 0.14), "deco": "shards", "stamp": "RUÍNAS"},
 	"inverno": {"accent": Color(0.56, 0.88, 0.90), "panel": Color(0.07, 0.12, 0.15), "deco": "frost", "stamp": "ERMO"},
+	"tunel": {"accent": Color(0.92, 0.66, 0.34), "panel": Color(0.10, 0.09, 0.08), "deco": "arches", "stamp": "GALERIAS"},
+	"alagada": {"accent": Color(0.86, 0.38, 0.32), "panel": Color(0.09, 0.13, 0.14), "deco": "waves", "stamp": "ALAGADA"},
+	"fossa": {"accent": Color(0.38, 0.82, 0.78), "panel": Color(0.05, 0.10, 0.12), "deco": "rivets", "stamp": "FOSSA"},
+	"ceu": {"accent": Color(0.96, 0.80, 0.40), "panel": Color(0.13, 0.15, 0.19), "deco": "propellers", "stamp": "CÉU"},
+	"cinzas": {"accent": Color(1.0, 0.44, 0.22), "panel": Color(0.12, 0.07, 0.06), "deco": "embers", "stamp": "CINZAS"},
 }
 
 
@@ -339,6 +344,60 @@ static func draw_season_ornament(ci: CanvasItem, size: Vector2, theme_id: String
 				var r := Vector2(cos(sh[2]), sin(sh[2]))
 				var o := r.orthogonal()
 				ink_poly(ci, PackedVector2Array([c - r * 12.0 * sc, c + o * 7.0 * sc, c + r * 10.0 * sc - o * 2.0 * sc, c - o * 8.0 * sc]), accent, 1.5)
+		"arches":
+			# blocos de pedra na borda de cima e um lampião no canto
+			var x := 2.0
+			var k := 0
+			while x < size.x * 0.45:
+				var bw := 22.0 + float((k * 7) % 9)
+				rect(ci, Rect2(x - 1, -5, bw + 2, 13), INK)
+				rect(ci, Rect2(x, -4, bw, 11), Color(0.38, 0.34, 0.30) if k % 2 == 0 else Color(0.32, 0.29, 0.26))
+				x += bw + 2.0
+				k += 1
+			var lp := Vector2(size.x - 14, 14)
+			glow(ci, lp, 26.0, Color(accent, 0.45))
+			ink_poly(ci, PackedVector2Array([lp + Vector2(-6, -8), lp + Vector2(6, -8), lp + Vector2(6, 8), lp + Vector2(-6, 8)]), accent, 1.5)
+			line(ci, lp + Vector2(0, -8), lp + Vector2(0, -16), INK, 2.0)
+		"waves":
+			# ondas em escamas na borda de cima
+			var x := 8.0
+			while x < size.x * 0.5:
+				arc(ci, Vector2(x, 6), 9.0, PI, TAU, 8, INK, 4.0)
+				arc(ci, Vector2(x, 6), 9.0, PI, TAU, 8, accent, 2.0)
+				arc(ci, Vector2(x, 6), 4.5, PI, TAU, 6, Color(accent, 0.6), 1.5)
+				x += 16.0
+			arc(ci, Vector2(size.x - 12, size.y - 2), 9.0, PI, TAU, 8, accent, 2.0)
+			arc(ci, Vector2(size.x - 28, size.y - 2), 9.0, PI, TAU, 8, accent, 2.0)
+		"rivets":
+			# chapa rebitada e uma escotilha no canto
+			var x := 8.0
+			while x < size.x - 30.0:
+				ink_circle(ci, Vector2(x, 3), 3.0, Color(0.74, 0.60, 0.36), 1.2)
+				x += 22.0
+			var c := Vector2(size.x - 14, 12)
+			ink_circle(ci, c, 13.0, Color(0.74, 0.60, 0.36), 2.0)
+			ink_circle(ci, c, 8.0, Color(accent, 0.8), 1.5)
+			circle(ci, c + Vector2(-3, -3), 2.5, Color(1, 1, 1, 0.6))
+		"propellers":
+			# hélice girada e um balão pequeno
+			var c := Vector2(size.x - 14, 8)
+			for i in 3:
+				var a := 0.4 + i * TAU / 3.0
+				ink_poly(ci, PackedVector2Array([c, c + Vector2(cos(a - 0.25), sin(a - 0.25)) * 18.0, c + Vector2(cos(a + 0.25), sin(a + 0.25)) * 18.0]), accent, 1.5)
+			ink_circle(ci, c, 4.0, Color(0.46, 0.37, 0.22), 1.5)
+			var bp := Vector2(16, -2)
+			line(ci, bp + Vector2(-5, 9), bp + Vector2(-3, 18), INK, 1.2)
+			line(ci, bp + Vector2(5, 9), bp + Vector2(3, 18), INK, 1.2)
+			ink_circle(ci, bp, 11.0, Color(0.80, 0.40, 0.30), 1.5)
+			rect(ci, Rect2(bp + Vector2(-4, 18), Vector2(8, 5)), Color(0.46, 0.37, 0.22))
+		"embers":
+			# rachaduras incandescentes e brasas subindo
+			var pts := PackedVector2Array([Vector2(4, 2), Vector2(26, 9), Vector2(40, 4), Vector2(62, 12), Vector2(80, 6)])
+			polyline(ci, pts, Color(accent, 0.45), 6.0)
+			polyline(ci, pts, Color(1.0, 0.78, 0.36), 2.0)
+			for e in [Vector2(size.x - 12, 6), Vector2(size.x - 26, -4), Vector2(size.x - 6, -10), Vector2(14, size.y - 4)]:
+				glow(ci, e, 12.0, Color(accent, 0.6))
+				circle(ci, e, 2.5, Color(1.0, 0.78, 0.36))
 		"frost":
 			# neve acumulada na borda de cima e pingentes de gelo
 			var x := 6.0
@@ -394,6 +453,31 @@ static func draw_stamp(ci: CanvasItem, c: Vector2, theme_id: String, font: Font)
 		"shards":
 			# silhueta de prédio quebrado
 			poly(ci, PackedVector2Array([c + Vector2(-8, 8), c + Vector2(8, 8), c + Vector2(8, -6), c + Vector2(3, -12), c + Vector2(0, -6), c + Vector2(-8, -10)]), col)
+		"arches":
+			var cc := c + Vector2(0, 0)
+			poly(ci, PackedVector2Array([cc + Vector2(-11, 8), cc + Vector2(11, 8), cc + Vector2(11, -4), cc + Vector2(-11, -4)]), col)
+			circle(ci, cc + Vector2(0, -4), 11.0, col)
+			circle(ci, cc + Vector2(0, -3), 6.0, CREAM)
+			rect(ci, Rect2(cc + Vector2(-6, -3), Vector2(12, 11)), CREAM)
+		"waves":
+			for i in 3:
+				arc(ci, c + Vector2(-8 + i * 8, 2), 6.0, PI, TAU, 8, col, 2.5)
+			arc(ci, c + Vector2(-4, -6), 6.0, PI, TAU, 8, col, 2.5)
+			arc(ci, c + Vector2(4, -6), 6.0, PI, TAU, 8, col, 2.5)
+		"rivets":
+			arc(ci, c + Vector2(0, -3), 11.0, 0, TAU, 20, col, 3.0)
+			circle(ci, c + Vector2(0, -3), 6.0, col)
+			for i in 6:
+				var a := i * TAU / 6.0
+				circle(ci, c + Vector2(0, -3) + Vector2(cos(a), sin(a)) * 15.0, 1.8, col)
+		"propellers":
+			for i in 3:
+				var a := i * TAU / 3.0
+				poly(ci, PackedVector2Array([c + Vector2(0, -3), c + Vector2(0, -3) + Vector2(cos(a - 0.3), sin(a - 0.3)) * 13.0, c + Vector2(0, -3) + Vector2(cos(a + 0.3), sin(a + 0.3)) * 13.0]), col)
+			circle(ci, c + Vector2(0, -3), 3.0, CREAM)
+		"embers":
+			poly(ci, PackedVector2Array([c + Vector2(0, -15), c + Vector2(8, 2), c + Vector2(0, 8), c + Vector2(-8, 2)]), col)
+			poly(ci, PackedVector2Array([c + Vector2(0, -6), c + Vector2(4, 3), c + Vector2(-4, 3)]), CREAM)
 		"frost":
 			for i in 3:
 				var a := i * PI / 3.0

@@ -94,7 +94,7 @@ func _run() -> void:
 	_check(g.state.train.state != TrainMovement.State.AT_STATION, "ao abrir, o trem segue viagem")
 	var view := _main.get_node("TrainView")
 	var audio := _main.get_node("AudioDirector")
-	_check(view._theme_id == "inicio", "cenário continua na região da Estação Inicial (%s)" % view._theme_id)
+	_check(view._theme_id == "tomada", "o trecho até a Cidade Tomada já é a região dela (%s)" % view._theme_id)
 	# A chegada na estação nova acontece com o jogador presente
 	g.state.train.distance_m = g.state.route.target_distance(1) - 0.2
 	g.state.train.current_speed = 2.0
@@ -111,14 +111,14 @@ func _run() -> void:
 	g.state.train.current_speed = g.state.cruise_speed()
 	await get_tree().create_timer(0.3).timeout
 	_check(g.state.train.state != TrainMovement.State.AT_STATION, "com o botão desligado o trem passa direto pelo Deserto de Ferrugem")
-	_check(view._theme_id == "deserto" and view._prev_theme_id == "tomada" and view._blend < 1.0, "chegar ao Deserto de Ferrugem inicia a transição de tema")
-	_check(audio.current_music_theme() == "deserto", "música troca para a variação do Deserto de Ferrugem")
+	_check(view._theme_id == "ruinas" and view._prev_theme_id == "deserto" and view._blend < 1.0, "passar pelo Deserto de Ferrugem entra na região das Ruínas Brancas (%s)" % view._theme_id)
+	_check(audio.current_music_theme() == "ruinas", "música troca para a variação das Ruínas Brancas")
 	hud.get_node("%OfflineOk").pressed.emit()
 	_check(not hud.get_node("%OfflinePopup").visible, "botão fecha o resumo")
 
 	print("Loja")
 	var rows: Dictionary = hud._producer_rows
-	_check(rows.size() == 3, "três linhas de produtores")
+	_check(rows.size() == 8, "oito linhas de produtores")
 	_check(not rows["mina"]["button"].disabled or g.state.stock.amount < 4000.0, "Mina liberada (1ª estação já alcançada)")
 	_check(rows["foguista"]["info"].text.contains("nv 12"), "linha do Foguista mostra o nível (%s)" % rows["foguista"]["info"].text)
 	_check(rows["foguista"]["detail"].text.contains("Nível 25"), "mostra o próximo marco (%s)" % rows["foguista"]["detail"].text)
@@ -155,7 +155,7 @@ func _run() -> void:
 	_check(train_tab.visible, "aba Trem visível depois da Estação Inicial")
 	train_tab.pressed.emit()
 	var crow: Dictionary = hud._component_rows
-	_check(crow.size() == 6, "seis peças listadas")
+	_check(crow.size() == 8, "oito peças listadas")
 	_check(crow["rodas"]["title"].text.contains("Rodas de ferro fundido"), "rodas de ferro fundido (%s)" % crow["rodas"]["title"].text)
 	_check(crow["chamine"]["title"].text.contains("bloqueado"), "Chaminé bloqueada até o Ruínas Brancas")
 	_check(not crow["rodas"]["auto"].visible, "manutenção automática escondida antes do Ruínas Brancas")
@@ -181,7 +181,7 @@ func _run() -> void:
 	_check(hud.get_node("%StateLabel").text.contains("Em manutenção (Pistões)"), "estado mostra a manutenção (%s)" % hud.get_node("%StateLabel").text)
 	_check(hud.get_node("%MaintenanceBar").visible, "barra de manutenção visível")
 	hud.get_node("%ProductionTab").pressed.emit()
-	_check(hud._producer_rows.size() == 3, "volta para a aba Produção")
+	_check(hud._producer_rows.size() == 8, "volta para a aba Produção")
 
 	# --- 2. Três dias fora: limite de 24 h -----------------------------------
 	_write_save({"save_version": 3, "saved_at": now - 3 * 86400.0, "stock": 0.0, "tank": 100.0,
@@ -198,7 +198,7 @@ func _run() -> void:
 	await _open_game()
 	print("Ruínas Brancas: manutenção automática")
 	text = _hud().get_node("%OfflineText").text
-	_check(_main.get_node("TrainView")._theme_id == "ruinas" and text.contains("parou antes da Estação Ermo Gelado"), "24 h fora nas Ruínas Brancas: espera antes do Ermo Gelado (tema %s)" % _main.get_node("TrainView")._theme_id)
+	_check(_main.get_node("TrainView")._theme_id == "inverno" and text.contains("parou antes da Estação Ermo Gelado"), "24 h fora depois das Ruínas Brancas: espera antes do Ermo Gelado, na região dele (tema %s)" % _main.get_node("TrainView")._theme_id)
 	_check(text.contains("paradas para manutenção"), "resumo offline mostra as paradas (%s)" % text.get_slice("\n", 3))
 	_hud().get_node("%TrainTab").pressed.emit()
 	var arow: Dictionary = _hud()._component_rows

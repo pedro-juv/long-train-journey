@@ -1,6 +1,7 @@
 extends Node
 ## Benchmark de desempenho (com janela e renderização).
-## Rodar: godot --path . res://tests/benchmark.tscn
+## Rodar: godot --path . res://tests/benchmark.tscn [-- <última estação alcançada>]
+## (ex.: "-- 7" mede a região do Céu de Latão; sem argumento, a primeira região)
 ## Mede, por quadro: tempo total, _draw do cenário, _process do cenário,
 ## _process da HUD e chamadas de desenho da GPU. Sem V-Sync.
 
@@ -37,6 +38,18 @@ func _ready() -> void:
 	_swap_script(_view, "res://tests/bench_view.gd")
 	_swap_script(_hud, "res://tests/bench_hud.gd")
 	add_child(_main)
+	var args := OS.get_cmdline_user_args()
+	if not args.is_empty():
+		await get_tree().process_frame
+		var game := _main.get_node("Game")
+		var station := int(args[0])
+		game.state.train.distance_m = game.state.route.target_distance(station) + 10.0
+		game.state.route.update(game.state.train.distance_m)
+		game.state.station_stop_left = 0.0
+		game.state.stock.add(1e15)
+		game.state._recalculate_multipliers()
+		_view._on_game_loaded()
+		print("região: ", game.state.current_region())
 
 
 func _process(_delta: float) -> void:

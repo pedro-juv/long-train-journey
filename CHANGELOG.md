@@ -7,6 +7,32 @@ Formato: `MAIOR.MENOR.CORREÇÃO`
 
 Cada versão vira uma tag no git (`v0.1.0`) e aparece no canto inferior direito do jogo.
 
+## [0.8.0] — 2026-11-26 · Regiões 6 a 10
+
+**Cinco regiões novas** (cenários originais, só inspirados nas referências)
+- Galerias de Pedra: túnel de pedra em arcos, lampiões e pouca luz
+- Vila Alagada: vila de beirais curvos semi-submersa; o trem corre na água
+- Fossa de Latão: túneis metálicos submersos, escotilhas, algas e bolhas
+- Céu de Latão: nuvens, grandes vãos e ilhas flutuantes; trilho em ponte
+- Mar de Cinzas: cinzas, rachaduras de lava e um colosso ao fundo
+- A região agora é a do trecho até a próxima estação: o cenário troca quando o
+  trem sai da estação anterior
+- HUD com cor e ornamentos de cada região nova; música ainda provisória
+
+**Economia**
+- Produtores novos: Veio Profundo, Barcaça Carvoeira, Draga do Fundo, Doca de
+  Dirigíveis e Forja de Brasa, cada um com seu equipamento
+- Melhoria de produção em cada estação nova e duas pás novas para o clique
+- Cada região tem uma regra (ex.: nas Galerias a chaminé gasta o dobro; no Céu
+  o trem anda 15% mais rápido, mas os engates gastam mais), avisada na partida
+- Melhorias que compensam as regras (Exaustor, Defletor, Casco, Estabilizadores)
+- Materiais novos (aço, bronze naval, aço naval): a peça dura o dobro, mas a
+  manutenção automática precisa ser comprada de novo
+- Peças novas: Vedação e Filtro
+- Trechos muito mais longos: jogando ativo, a rota inteira leva cerca de 18 h
+- A velocidade cresce mais devagar nas regiões finais; distâncias e
+  velocidades grandes aparecem com separador de milhar
+
 ## [0.7.0] — 2026-11-26 · Offline mais controlado
 
 **Progresso com o jogo fechado**

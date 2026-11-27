@@ -26,6 +26,12 @@ const MUSIC_BY_THEME := {
 	"deserto": "res://assets/audio/musica_verao.ogg",
 	"ruinas": "res://assets/audio/musica_outono.ogg",
 	"inverno": "res://assets/audio/musica_inverno.ogg",
+	# regiões 6 a 10: ainda sem trilha própria, reaproveitam variações (provisório)
+	"tunel": "res://assets/audio/musica_inverno.ogg",
+	"alagada": "res://assets/audio/musica_primavera.ogg",
+	"fossa": "res://assets/audio/musica_outono.ogg",
+	"ceu": "res://assets/audio/musica_verao.ogg",
+	"cinzas": "res://assets/audio/musica_steampunk.ogg",
 }
 const CHUFF_DB_MIN := -26.0
 const CHUFF_DB_MAX := -14.0

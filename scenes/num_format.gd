@@ -44,8 +44,10 @@ static func _thousands(n: int) -> String:
 	return ("-" if n < 0 else "") + out
 
 
-## Distância: "850 m", "12.345 m", "52,5 km".
+## Distância: "850 m", "12.345 m", "52,5 km", "350.000 km".
 static func distance(meters: float) -> String:
+	if meters >= 10000000.0:
+		return _thousands(int(floor(meters / 1000.0))) + " km"
 	if meters >= 100000.0:
 		return _decimal(meters / 1000.0, 1) + " km"
 	return _thousands(int(floor(meters))) + " m"
@@ -53,6 +55,8 @@ static func distance(meters: float) -> String:
 
 ## Velocidade: "6,0 m/s".
 static func speed(mps: float) -> String:
+	if mps >= 1000.0:
+		return _thousands(int(floor(mps))) + " m/s"
 	return String.num(mps, 1).replace(".", ",") + " m/s"
 
 

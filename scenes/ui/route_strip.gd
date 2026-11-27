@@ -63,6 +63,10 @@ func _draw() -> void:
 			HudSkin.line(self, p + Vector2(-1, 3), p + Vector2(4, -3), ink, 2.0)
 		var label := station_names[i]
 		var w := 90.0
+		if n > 6 and i != reached:
+			continue   # rota longa: só o nome da próxima estação (o resto fica nos pontos)
+		if n > 6:
+			w = 150.0
 		var col := HudSkin.CREAM if done or i == reached else Color(HudSkin.CREAM, 0.6)
 		if _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x <= w - 4.0:
 			draw_string(_font, Vector2(p.x - w / 2.0, y + 26.0), label, HORIZONTAL_ALIGNMENT_CENTER, w, 11, col)
