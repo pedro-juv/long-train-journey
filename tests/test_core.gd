@@ -32,6 +32,7 @@ func _initialize() -> void:
 	_test_offline()
 	_test_offline_matches_online()
 	_test_save_roundtrip_and_migration()
+	_test_number_format()
 	_test_simulation()
 	if not OS.has_environment("SKIP_LONG"):   # rota longa leva alguns minutos
 		_test_long_route()
@@ -112,6 +113,23 @@ func _test_click_and_stoke() -> void:
 			e.click()
 		e.tick(0.1)
 	_check(e.stoke > 0.45 and e.stoke < 0.75, "3 cliques/s: pressão estável em ~0,6 (%.2f)" % e.stoke)
+	# contador: carvão/s dos cliques entra na produção mostrada
+	var c := _new_state()
+	c.stock.add(1e12)
+	for i in 40:
+		c.buy_producer("carvoaria")
+	_check(c.click_income_rate == 0.0 and is_equal_approx(c.effective_production(), c.total_production()), "sem cliques: contador = produção")
+	var per_click := c.click_value()
+	for i in 400:   # 20 s a 5 cliques/s, quadros de 0,05 s
+		if i % 4 == 0:
+			c.click()
+		c.tick(0.05)
+	var expected := 5.0 * per_click
+	_check(absf(c.click_income_rate - expected) / expected < 0.1, "5 cliques/s: contador soma ~5 cliques de carvão por segundo (%.0f, esperado %.0f)" % [c.click_income_rate, expected])
+	_check(is_equal_approx(c.effective_production(), c.total_production() + c.click_income_rate), "produção mostrada = produtores + cliques")
+	for i in 400:   # 20 s sem clicar
+		c.tick(0.05)
+	_check(c.click_income_rate < expected * 0.01, "parou de clicar: a parte dos cliques some aos poucos (%.1f)" % c.click_income_rate)
 
 
 func _test_speed() -> void:
@@ -658,6 +676,27 @@ func _fmt_minutes(times: Array[float]) -> String:
 	for x in times:
 		parts.append("%.1f" % (x / 60.0))
 	return ", ".join(parts)
+
+
+func _test_number_format() -> void:
+	print("Resumo dos números (como nos jogos clicker)")
+	_check(NumFormat.amount(999999.0) == "999.999", "abaixo de 1 mi: separador de milhar (%s)" % NumFormat.amount(999999.0))
+	_check(NumFormat.amount(15.52e6) == "15,52 mi", "mi (%s)" % NumFormat.amount(15.52e6))
+	_check(NumFormat.amount(8.9e6) == "8,90 mi" and NumFormat.amount(9e6) == "9,00 mi" and NumFormat.amount(8.09e6) == "8,09 mi", "sempre duas casas: não pisca ao passar por zero (%s, %s, %s)" % [NumFormat.amount(8.9e6), NumFormat.amount(9e6), NumFormat.amount(8.09e6)])
+	_check(NumFormat.amount(3.2e12) == "3,20 tri", "tri (%s)" % NumFormat.amount(3.2e12))
+	_check(NumFormat.amount(1.5e15) == "1,50 qua" and NumFormat.amount(2e18) == "2,00 qui", "qua e qui (%s, %s)" % [NumFormat.amount(1.5e15), NumFormat.amount(2e18)])
+	_check(NumFormat.amount(8.999e6) == "8,99 mi" and NumFormat.amount(999.999e6) == "999,99 mi" and NumFormat.amount(999999.7) == "999.999", "casas cortadas, não arredondadas: nunca mostra mais do que tem (%s, %s, %s)" % [NumFormat.amount(8.999e6), NumFormat.amount(999.999e6), NumFormat.amount(999999.7)])
+	var widths := {}
+	for x in [8.0e6, 8.09e6, 8.9e6, 9.0e6, 9.99e6]:
+		widths[NumFormat.amount(x).length()] = true
+	_check(widths.size() == 1, "de 8 mi a 9,99 mi o texto tem sempre o mesmo tamanho")
+	_check(NumFormat.distance(123000.0) == "123,0 km" and NumFormat.distance(123456.0) == "123,4 km", "distância com uma casa fixa (%s)" % NumFormat.distance(123000.0))
+	_check(NumFormat.amount(999.99e33) == "999,99 dc", "dc (%s)" % NumFormat.amount(999.99e33))
+	_check(NumFormat.amount(1.234e40) == "1,23e40" and NumFormat.amount(1e40) == "1,00e40", "acima de dc: notação científica (%s)" % NumFormat.amount(1.234e40))
+	var longest := 0
+	for e in range(0, 40):
+		longest = maxi(longest, NumFormat.amount(9.99999 * pow(10.0, e)).length())
+	_check(longest <= 10, "nenhum número passa de 10 caracteres (máx %d)" % longest)
 
 
 func _test_simulation() -> void:

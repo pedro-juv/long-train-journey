@@ -28,6 +28,12 @@ var click_multiplier: float = 1.0
 
 ## Pressão da caldeira atiçada pelos cliques (0 a 1): dá velocidade extra.
 var stoke: float = 0.0
+## Carvão/s que está entrando pelos cliques (média móvel de alguns segundos;
+## só para mostrar no contador, não é salvo).
+var click_income_rate: float = 0.0
+## Segundos da média móvel do carvão dos cliques.
+const CLICK_RATE_SECONDS := 2.5
+var _click_income_pending: float = 0.0
 ## Preferência do jogador: parar na plataforma de cada estação (com cutscene).
 var stop_at_stations: bool = true
 ## Segundos que faltam parado na estação atual (0 = não está parado).
@@ -198,7 +204,9 @@ func can_buy_auto(id: String) -> bool:
 # ---------------------------------------------------------------------------
 
 func click() -> void:
-	stock.add(click_value())
+	var gained := click_value()
+	stock.add(gained)
+	_click_income_pending += gained
 	stoke = minf(1.0, stoke + config.stoke_per_click)
 
 
@@ -270,6 +278,7 @@ func tick(delta: float) -> Dictionary:
 	var production := total_production()
 	stock.add(production * delta)  # a produção continua mesmo parado
 	stoke *= exp(-delta / config.stoke_decay_seconds)
+	_update_click_income_rate(delta)
 	var result := {"state_changed": false, "stations": [] as Array[int], "failed": [] as Array[String],
 		"auto": [] as Array[String], "maintenance_done": false, "station_stop": false, "departed": false}
 	var previous_state := train.state
@@ -335,6 +344,21 @@ func legacy_distance_to_current(old_distance: float) -> float:
 		old_start += old_len
 		new_start += new_len
 	return new_start + (old_distance - old_start)   # depois do fim da rota
+
+
+## Produção dos produtores + carvão/s que está vindo dos cliques.
+func effective_production() -> float:
+	return total_production() + click_income_rate
+
+
+func _update_click_income_rate(delta: float) -> void:
+	if delta <= 0.0:
+		return
+	var now_rate := _click_income_pending / delta
+	_click_income_pending = 0.0
+	click_income_rate += (now_rate - click_income_rate) * (1.0 - exp(-delta / CLICK_RATE_SECONDS))
+	if click_income_rate < 1e-3:
+		click_income_rate = 0.0
 
 
 ## Parado na plataforma de uma estação (contando a parada ou esperando partir).

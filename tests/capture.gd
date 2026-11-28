@@ -9,12 +9,38 @@ const THEMES := [["inicio", -1], ["tomada", 0], ["deserto", 1], ["ruinas", 2], [
 var _main: Node
 
 
+## Guarda o save e as configurações do jogador e devolve no fim (este teste
+## apaga o save e as notas da versão marcariam a versão como vista).
+const _KEEP := [["user://save.json", "user://save_backup_%s.json"], ["user://settings.cfg", "user://settings_backup_%s.cfg"]]
+
+
+static func _backup_user_files(tag: String) -> void:
+	for pair in _KEEP:
+		var src := ProjectSettings.globalize_path(pair[0])
+		var dst := ProjectSettings.globalize_path(pair[1] % tag)
+		if FileAccess.file_exists(src):
+			DirAccess.copy_absolute(src, dst)
+	PatchNotes.mark_seen()
+
+
+static func _restore_user_files(tag: String) -> void:
+	for pair in _KEEP:
+		var dst := ProjectSettings.globalize_path(pair[0])
+		var bak := ProjectSettings.globalize_path(pair[1] % tag)
+		if FileAccess.file_exists(bak):
+			DirAccess.copy_absolute(bak, dst)
+			DirAccess.remove_absolute(bak)
+		elif FileAccess.file_exists(dst):
+			DirAccess.remove_absolute(dst)
+
+
 func _ready() -> void:
 	var out := "user://capturas"
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		out = args[0]
 	DirAccess.make_dir_recursive_absolute(out)
+	_backup_user_files("capture")
 	SaveManager.delete_save()
 	_main = load("res://scenes/main.tscn").instantiate()
 	add_child(_main)
@@ -30,6 +56,7 @@ func _ready() -> void:
 		game.state.station_stop_left = 0.0
 		game.state.train.current_speed = game.state.cruise_speed()
 		view._on_game_loaded()   # entra direto no tema, sem transição
+		game.state.click_income_rate = 4910.0 if t[0] == "deserto" else 0.0   # porta com a linha dos cliques
 		for i in 90:
 			await get_tree().process_frame
 		var img := get_viewport().get_texture().get_image()
@@ -83,5 +110,7 @@ func _ready() -> void:
 	print("capturado: notas")
 	_main.get_node("PatchNotes").close()
 	_main.get_node("OptionsMenu").close()
-	SaveManager.delete_save()
+	remove_child(_main)
+	_main.free()   # sem salvar por cima do save devolvido
+	_restore_user_files("capture")
 	get_tree().quit()

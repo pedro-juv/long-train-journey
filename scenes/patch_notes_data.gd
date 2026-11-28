@@ -5,6 +5,12 @@ extends RefCounted
 ## nova, acrescente uma entrada no topo.
 
 const NOTES := [
+	{"version": "0.9.1", "date": "27/11/2026", "title": "Correções", "items": [
+		"O trenzinho do indicador da rota agora anda de acordo com a distância percorrida (antes só pulava ao chegar nas estações).",
+		"O estoque de carvão virou a porta de uma caldeira de ferro, de tamanho fixo: o número não fica mais tremendo nem esticando a placa.",
+		"Números grandes continuam resumidos como nos jogos de clique (mi, bi, tri, qua, qui, sx, sp, oc, no e dc), agora sempre com duas casas (8,90 mi), sem piscar quando a casa passa por zero.",
+		"A produção mostrada soma o carvão dos cliques (e do Espaço); uma linha embaixo mostra só a parte dos cliques.",
+	]},
 	{"version": "0.9.0", "date": "27/11/2026", "title": "Ritmo proporcional e botão Partir", "items": [
 		"Ao chegar numa estação, o trem espera você clicar em PARTIR.",
 		"Nova opção \"Partir sozinho\" no menu (ESC), desligada por padrão: ligada, o trem parte sozinho depois de 5 s, como antes.",

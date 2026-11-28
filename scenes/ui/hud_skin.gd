@@ -74,6 +74,18 @@ static func ticket_style() -> StyleBoxFlat:
 	return sb
 
 
+## Porta de caldeira (o estoque de carvão): ferro escuro, borda de tinta.
+const DOOR_IRON := Color(0.17, 0.18, 0.20)
+
+
+static func boiler_door_style() -> StyleBoxFlat:
+	var sb := box(DOOR_IRON, INK, 3, 5, 10.0)
+	sb.shadow_color = Color(0, 0, 0, 0.35)
+	sb.shadow_size = 5
+	sb.shadow_offset = Vector2(0, 3)
+	return sb
+
+
 static func plate_style(bg: Color = WINE) -> StyleBoxFlat:
 	var sb := box(bg, INK, 4, 12, 12.0)
 	sb.content_margin_left = 22

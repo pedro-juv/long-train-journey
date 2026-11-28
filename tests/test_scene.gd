@@ -137,6 +137,38 @@ func _run() -> void:
 	hud.get_node("%OfflineOk").pressed.emit()
 	_check(not hud.get_node("%OfflinePopup").visible, "botão fecha o resumo")
 
+	print("Indicador da rota")
+	var strip := RouteStrip.new()
+	add_child(strip)
+	strip.size = Vector2(500, 44)
+	var snames := PackedStringArray(["A", "B", "C", "D", "E"])
+	strip.set_route(snames, 1, 0.0)
+	for i in 100:
+		strip.set_route(snames, 1, i * 0.001)   # andando devagar: menos de meio pixel por quadro
+	_check(strip._drawn_pos > 1.09, "movimento lento acumula e o trenzinho anda no indicador (%.3f)" % strip._drawn_pos)
+	strip.set_route(snames, 2, 0.0)
+	_check(is_equal_approx(strip._drawn_pos, 2.0), "chegar na estação redesenha na hora")
+	strip.queue_free()
+
+	print("Porta da caldeira (estoque)")
+	var door: Control = hud.get_node("Ticket")
+	var door_w := door.size.x
+	var stock_keep: float = g.state.stock.amount
+	for big in [15.52e6, 999.99e15, 999.99e33, 1.23e40]:
+		g.state.stock.amount = big
+		await get_tree().process_frame
+		await get_tree().process_frame
+		_check(hud.get_node("%StockLabel").text == NumFormat.amount(g.state.stock.amount) and is_equal_approx(door.size.x, door_w), "porta não estica com %s (%.0f px)" % [hud.get_node("%StockLabel").text, door.size.x])
+	g.state.stock.amount = stock_keep
+	await get_tree().process_frame
+	_check(hud.get_node("%ClickRateLabel").text == "Cliques: —", "sem clicar: linha dos cliques vazia (%s)" % hud.get_node("%ClickRateLabel").text)
+	for i in 12:
+		hud._on_click_pressed()
+		await get_tree().create_timer(0.05).timeout
+	await get_tree().create_timer(0.15).timeout
+	_check(hud.get_node("%ClickRateLabel").text.begins_with("Cliques: +") and g.state.click_income_rate > 0.0, "clicando: porta mostra o carvão/s dos cliques (%s)" % hud.get_node("%ClickRateLabel").text)
+	_check(hud.get_node("%ProductionLabel").text.begins_with("Produção: ") and g.state.effective_production() > g.state.total_production(), "produção mostrada soma os cliques (%s)" % hud.get_node("%ProductionLabel").text)
+
 	print("Loja")
 	var rows: Dictionary = hud._producer_rows
 	_check(rows.size() == 8, "oito linhas de produtores")
@@ -430,7 +462,7 @@ func _run() -> void:
 	_check(hud.get_node("Ticket").visible and hud.get_node("ShopPanel").visible and view._layers["SkyGradient"].visible, "HUD e cenário completos de volta")
 	if has_window:
 		_check(not get_window().transparent_bg and not get_window().always_on_top and not get_window().borderless, "janela normal restaurada")
-	_check(g.state.producer("foguista").level == lvl + 1 and hud.get_node("%StockLabel").text == "%s carvão" % NumFormat.amount(g.state.stock.amount), "modo normal mostra a compra e o carvão atualizados")
+	_check(g.state.producer("foguista").level == lvl + 1 and hud.get_node("%StockLabel").text == NumFormat.amount(g.state.stock.amount), "modo normal mostra a compra e o carvão atualizados")
 	# menu aberto -> trem flutuante -> volta -> ESC: a placa abre no lugar certo
 	var board: Control = _menu().get_node("%Board")
 	_menu().open()

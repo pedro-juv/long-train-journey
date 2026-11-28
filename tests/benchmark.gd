@@ -18,6 +18,31 @@ var _draw_calls := 0.0
 var _primitives := 0.0
 
 
+## Guarda o save e as configurações do jogador e devolve no fim (este teste
+## apaga o save e as notas da versão marcariam a versão como vista).
+const _KEEP := [["user://save.json", "user://save_backup_%s.json"], ["user://settings.cfg", "user://settings_backup_%s.cfg"]]
+
+
+static func _backup_user_files(tag: String) -> void:
+	for pair in _KEEP:
+		var src := ProjectSettings.globalize_path(pair[0])
+		var dst := ProjectSettings.globalize_path(pair[1] % tag)
+		if FileAccess.file_exists(src):
+			DirAccess.copy_absolute(src, dst)
+	PatchNotes.mark_seen()
+
+
+static func _restore_user_files(tag: String) -> void:
+	for pair in _KEEP:
+		var dst := ProjectSettings.globalize_path(pair[0])
+		var bak := ProjectSettings.globalize_path(pair[1] % tag)
+		if FileAccess.file_exists(bak):
+			DirAccess.copy_absolute(bak, dst)
+			DirAccess.remove_absolute(bak)
+		elif FileAccess.file_exists(dst):
+			DirAccess.remove_absolute(dst)
+
+
 func _swap_script(node: Node, script_path: String) -> void:
 	var saved := {}
 	for prop in node.get_property_list():
@@ -31,6 +56,7 @@ func _swap_script(node: Node, script_path: String) -> void:
 func _ready() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
+	_backup_user_files("bench")
 	SaveManager.delete_save()
 	_main = load("res://scenes/main.tscn").instantiate()
 	_view = _main.get_node("TrainView")
@@ -84,5 +110,7 @@ func _process(_delta: float) -> void:
 		print("  -- desenho por camada (média por quadro) --")
 		for k in parts.slice(0, 10):
 			print("    %-14s %.3f ms" % [k, _view.layer_usec[k] / 1000.0 / n])
-		SaveManager.delete_save()
+		remove_child(_main)
+		_main.free()   # sem salvar por cima do save devolvido
+		_restore_user_files("bench")
 		get_tree().quit()
