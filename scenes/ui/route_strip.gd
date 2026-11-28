@@ -8,6 +8,9 @@ var reached: int = 0
 ## Progresso dentro do trecho atual (0 a 1).
 var progress: float = 0.0
 var accent: Color = HudSkin.BRASS
+## Posição (estações + progresso) do último desenho: só redesenha quando o
+## trenzinho andou pelo menos meio pixel desde ele.
+var _drawn_pos: float = -1.0
 
 var _font: Font
 
@@ -19,12 +22,17 @@ func _ready() -> void:
 
 
 func set_route(names: PackedStringArray, reached_count: int, segment_progress: float) -> void:
-	# só redesenha quando o trenzinho anda pelo menos meio pixel
-	var changed := names != station_names or reached_count != reached or absf(segment_progress - progress) * size.x / maxf(1.0, names.size()) > 0.5
+	# só redesenha quando o trenzinho andou pelo menos meio pixel desde o
+	# último desenho (comparar com a chamada anterior nunca acumulava o
+	# movimento lento e o trenzinho só pulava ao chegar nas estações)
+	var changed := names != station_names or reached_count != reached
 	station_names = names
 	reached = reached_count
 	progress = clampf(segment_progress, 0.0, 1.0)
-	if changed:
+	var pos := float(reached) + progress
+	var px_per_station := (size.x - 32.0) / maxf(1.0, names.size())
+	if changed or absf(pos - _drawn_pos) * px_per_station > 0.5:
+		_drawn_pos = pos
 		queue_redraw()
 
 

@@ -4,13 +4,24 @@ extends RefCounted
 ## (vírgula decimal, ponto de milhar, "mil/mi/bi/tri" para valores grandes)
 ## Só apresentação: nenhuma regra de jogo usa isto.
 
-const _SUFFIXES := [[1e12, "tri"], [1e9, "bi"], [1e6, "mi"]]
+## Resumo dos números grandes (como nos jogos clicker): mi, bi, tri, qua
+## (quatrilhão), qui (quintilhão), sx, sp, oc, no, dc. Acima disso, "1,23e36".
+const _SUFFIXES := [[1e33, "dc"], [1e30, "no"], [1e27, "oc"], [1e24, "sp"], [1e21, "sx"],
+	[1e18, "qui"], [1e15, "qua"], [1e12, "tri"], [1e9, "bi"], [1e6, "mi"]]
+const _SCIENTIFIC_FROM := 1e36
 
 
 ## Quantidade de carvão ou custo: "15", "1.234", "12,5 mi".
 static func amount(value: float) -> String:
 	var v := absf(value)
 	var prefix := "-" if value < 0.0 else ""
+	if v >= _SCIENTIFIC_FROM:
+		var e := int(floor(log(v) / log(10.0)))
+		var m := v / pow(10.0, e)
+		if m >= 9.995:   # arredondamento virou 10,00
+			m /= 10.0
+			e += 1
+		return prefix + _decimal(m, 2) + "e" + str(e)
 	for s in _SUFFIXES:
 		if v >= s[0]:
 			return prefix + _decimal(v / s[0], 2) + " " + s[1]

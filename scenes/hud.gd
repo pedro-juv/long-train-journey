@@ -27,6 +27,7 @@ const SPEED_GAUGE_MAX := 60.0
 
 @onready var _stock_label: Label = %StockLabel
 @onready var _production_label: Label = %ProductionLabel
+@onready var _click_rate_label: Label = %ClickRateLabel
 @onready var _state_label: Label = %StateLabel
 @onready var _state_plate: PanelContainer = %StatePlate
 ## Botão "Partir" (na placa de estado), quando o trem espera o jogador.
@@ -167,7 +168,7 @@ func _process(delta: float) -> void:
 	if _shop_timer >= SHOP_REFRESH_INTERVAL:
 		_shop_timer = 0.0
 		_refresh_shop()
-		_production_label.text = "Produção: %s carvão/s" % NumFormat.rate(_state().total_production())
+		_refresh_production()
 		_click_button.text = "ATIÇAR A CALDEIRA\n+%s carvão" % NumFormat.rate(_state().click_value())
 		_refresh_maintenance_status()
 		_refresh_state_label()
@@ -218,7 +219,7 @@ func _apply_skin(theme_id: String) -> void:
 	var wood := HudSkin.panel_style(_skin_id)
 	for panel in [$RoutePlate, $Dashboard, $ShopPanel]:
 		panel.add_theme_stylebox_override("panel", wood)
-	$Ticket.add_theme_stylebox_override("panel", HudSkin.ticket_style())
+	$Ticket.add_theme_stylebox_override("panel", HudSkin.boiler_door_style())
 	var telegram := HudSkin.ticket_style()
 	telegram.set_content_margin_all(18)
 	_offline_popup.add_theme_stylebox_override("panel", telegram)
@@ -228,10 +229,14 @@ func _apply_skin(theme_id: String) -> void:
 	var banner := HudSkin.plate_style(HudSkin.WINE)
 	banner.border_width_bottom = 8
 	_banner.add_theme_stylebox_override("panel", banner)
-	# textos escuros no papel (bilhete e telegrama)
-	for label in [$Ticket/Margin/VBox/TicketTitle, _stock_label, _production_label, $OfflinePopup/Margin/VBox/OfflineTitle, _offline_text]:
+	# textos escuros no papel (telegrama)
+	for label in [$OfflinePopup/Margin/VBox/OfflineTitle, _offline_text]:
 		label.add_theme_color_override("font_color", HudSkin.INK)
-	$Ticket/Margin/VBox/TicketTitle.add_theme_color_override("font_color", HudSkin.WINE)
+	# porta da caldeira: texto claro sobre o ferro
+	$Ticket/Margin/VBox/TicketTitle.add_theme_color_override("font_color", accent.lerp(HudSkin.CREAM, 0.35))
+	_stock_label.add_theme_color_override("font_color", HudSkin.CREAM)
+	_production_label.add_theme_color_override("font_color", HudSkin.CREAM_DARK)
+	_click_rate_label.add_theme_color_override("font_color", HudSkin.BRASS)
 	# títulos com contorno de tinta
 	for label in [$ShopPanel/VBox/ShopTitle, _banner_text, _state_label]:
 		label.add_theme_color_override("font_color", accent.lerp(Color.WHITE, 0.25))
@@ -268,16 +273,49 @@ func _draw_decor(panel: Control) -> void:
 		HudSkin.draw_panel_decor(panel, panel.size, _skin_id)
 
 
-## Bilhete: picote nas laterais, faixa da cor da estação e carimbo.
+## Porta da caldeira (estoque de carvão): faixa da cor da região, dobradiças
+## à esquerda, rebites na borda e trinco de latão com frestas da fornalha à
+## direita. Desenhada só quando a pele muda (não a cada quadro).
 func _draw_ticket_decor(panel: Control) -> void:
 	var accent: Color = HudSkin.skin(_skin_id)["accent"]
 	var s := panel.size
-	HudSkin.rect(panel, Rect2(3, 3, 9, s.y - 6), accent.darkened(0.1))
-	var y := 10.0
-	while y < s.y - 6.0:
-		HudSkin.circle(panel, Vector2(s.x - 66, y), 2.0, Color(HudSkin.INK, 0.35))
-		y += 9.0
-	HudSkin.draw_stamp(panel, Vector2(s.x - 33, s.y / 2.0), _skin_id, _font)
+	var ink := HudSkin.INK
+	# relevo da chapa: luz em cima/esquerda, sombra embaixo/direita
+	var inner := Rect2(6, 6, s.x - 12, s.y - 12)
+	HudSkin.line(panel, inner.position, Vector2(inner.end.x, inner.position.y), Color(1, 1, 1, 0.10), 2.0)
+	HudSkin.line(panel, inner.position, Vector2(inner.position.x, inner.end.y), Color(1, 1, 1, 0.10), 2.0)
+	HudSkin.line(panel, Vector2(inner.position.x, inner.end.y), inner.end, Color(0, 0, 0, 0.35), 2.0)
+	HudSkin.line(panel, Vector2(inner.end.x, inner.position.y), inner.end, Color(0, 0, 0, 0.35), 2.0)
+	# faixa da cor da região
+	HudSkin.rect(panel, Rect2(4, 4, 5, s.y - 8), accent.darkened(0.1))
+	# dobradiças
+	for hy in [14.0, s.y - 32.0]:
+		var h := Rect2(11, hy, 14, 18)
+		HudSkin.rect(panel, h.grow(1.5), ink)
+		HudSkin.rect(panel, h, HudSkin.METAL.darkened(0.25))
+		HudSkin.rect(panel, Rect2(h.position.x, h.position.y + 2, 4, h.size.y - 4), HudSkin.METAL.darkened(0.05))
+		HudSkin.ink_circle(panel, h.get_center() + Vector2(2, 0), 2.2, HudSkin.METAL, 1.2)
+	# rebites em cima e embaixo
+	var x := 40.0
+	while x < s.x - 52.0:
+		for ry in [9.0, s.y - 9.0]:
+			HudSkin.circle(panel, Vector2(x, ry), 3.0, ink)
+			HudSkin.circle(panel, Vector2(x, ry), 2.0, HudSkin.METAL.darkened(0.15))
+			HudSkin.circle(panel, Vector2(x - 0.6, ry - 0.7), 0.8, Color(1, 1, 1, 0.45))
+		x += 26.0
+	# trinco: chapa com frestas da fornalha e alavanca de latão
+	var plate := Rect2(s.x - 40, s.y / 2.0 - 30, 26, 60)
+	HudSkin.rect(panel, plate.grow(1.5), ink)
+	HudSkin.rect(panel, plate, HudSkin.DOOR_IRON.lightened(0.08))
+	for i in 3:
+		var slit := Rect2(plate.position.x + 5, plate.position.y + 7 + i * 7, plate.size.x - 10, 3)
+		HudSkin.rect(panel, slit.grow(1.0), ink)
+		HudSkin.rect(panel, slit, Color(1.0, 0.48, 0.14).lerp(accent, 0.25))
+	var pivot := Vector2(plate.get_center().x, plate.end.y - 14)
+	HudSkin.line(panel, pivot, pivot + Vector2(-20, 0), ink, 7.0)
+	HudSkin.line(panel, pivot, pivot + Vector2(-20, 0), HudSkin.BRASS, 4.0)
+	HudSkin.ink_circle(panel, pivot + Vector2(-21, 0), 4.0, HudSkin.BRASS, 1.5)
+	HudSkin.ink_circle(panel, pivot, 4.5, HudSkin.BRASS_DARK, 1.5)
 
 
 ## Ícone de engrenagem no botão de opções (desenhado no próprio botão).
@@ -381,8 +419,18 @@ func _on_options_pressed() -> void:
 # Status
 # ---------------------------------------------------------------------------
 
+## Produção na porta da caldeira: produtores + o carvão que os cliques estão
+## dando agora (média de alguns segundos), com a parte dos cliques embaixo.
+func _refresh_production() -> void:
+	var st := _state()
+	_production_label.text = "Produção: %s/s" % NumFormat.rate(st.effective_production())
+	var clicks := st.click_income_rate
+	_click_rate_label.text = "Cliques: +%s/s" % NumFormat.rate(clicks) if clicks >= 0.05 else "Cliques: —"
+	_click_rate_label.modulate.a = 1.0 if clicks >= 0.05 else 0.55
+
+
 func _on_stock_changed(amount: float) -> void:
-	_stock_label.text = "%s carvão" % NumFormat.amount(amount)
+	_stock_label.text = NumFormat.amount(amount)
 
 
 ## Placa de estado: só aparece quando algo especial acontece.
