@@ -682,10 +682,17 @@ func _test_number_format() -> void:
 	print("Resumo dos números (como nos jogos clicker)")
 	_check(NumFormat.amount(999999.0) == "999.999", "abaixo de 1 mi: separador de milhar (%s)" % NumFormat.amount(999999.0))
 	_check(NumFormat.amount(15.52e6) == "15,52 mi", "mi (%s)" % NumFormat.amount(15.52e6))
-	_check(NumFormat.amount(3.2e12) == "3,2 tri", "tri (%s)" % NumFormat.amount(3.2e12))
-	_check(NumFormat.amount(1.5e15) == "1,5 qua" and NumFormat.amount(2e18) == "2 qui", "qua e qui (%s, %s)" % [NumFormat.amount(1.5e15), NumFormat.amount(2e18)])
+	_check(NumFormat.amount(8.9e6) == "8,90 mi" and NumFormat.amount(9e6) == "9,00 mi" and NumFormat.amount(8.09e6) == "8,09 mi", "sempre duas casas: não pisca ao passar por zero (%s, %s, %s)" % [NumFormat.amount(8.9e6), NumFormat.amount(9e6), NumFormat.amount(8.09e6)])
+	_check(NumFormat.amount(3.2e12) == "3,20 tri", "tri (%s)" % NumFormat.amount(3.2e12))
+	_check(NumFormat.amount(1.5e15) == "1,50 qua" and NumFormat.amount(2e18) == "2,00 qui", "qua e qui (%s, %s)" % [NumFormat.amount(1.5e15), NumFormat.amount(2e18)])
+	_check(NumFormat.amount(8.999e6) == "8,99 mi" and NumFormat.amount(999.999e6) == "999,99 mi" and NumFormat.amount(999999.7) == "999.999", "casas cortadas, não arredondadas: nunca mostra mais do que tem (%s, %s, %s)" % [NumFormat.amount(8.999e6), NumFormat.amount(999.999e6), NumFormat.amount(999999.7)])
+	var widths := {}
+	for x in [8.0e6, 8.09e6, 8.9e6, 9.0e6, 9.99e6]:
+		widths[NumFormat.amount(x).length()] = true
+	_check(widths.size() == 1, "de 8 mi a 9,99 mi o texto tem sempre o mesmo tamanho")
+	_check(NumFormat.distance(123000.0) == "123,0 km" and NumFormat.distance(123456.0) == "123,4 km", "distância com uma casa fixa (%s)" % NumFormat.distance(123000.0))
 	_check(NumFormat.amount(999.99e33) == "999,99 dc", "dc (%s)" % NumFormat.amount(999.99e33))
-	_check(NumFormat.amount(1.234e40) == "1,23e40", "acima de dc: notação científica (%s)" % NumFormat.amount(1.234e40))
+	_check(NumFormat.amount(1.234e40) == "1,23e40" and NumFormat.amount(1e40) == "1,00e40", "acima de dc: notação científica (%s)" % NumFormat.amount(1.234e40))
 	var longest := 0
 	for e in range(0, 40):
 		longest = maxi(longest, NumFormat.amount(9.99999 * pow(10.0, e)).length())
